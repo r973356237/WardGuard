@@ -1,2 +1,3 @@
 # 忽略Node.js依赖
 node_modules/
+.env

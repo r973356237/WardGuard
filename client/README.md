@@ -1,46 +1,62 @@
-# Getting Started with Create React App
+# WardGuard 前端项目文档
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+## 项目概述
+本项目是 WardGuard 系统的前端部分，使用 Create React App 搭建，基于 React 框架开发。主要用于展示和交互处理系统相关业务。
 
-## Available Scripts
+## 技术栈
+- React：核心前端框架
+- TypeScript：编程语言
+- CSS：样式编写
 
-In the project directory, you can run:
+## 项目结构
+```plaintext
+client/
+├── public/
+│   ├── index.html
+│   ├── favicon.ico
+│   └── ...
+├── src/
+│   ├── components/
+│   ├── pages/
+│   ├── App.tsx
+│   ├── index.tsx
+│   └── ...
+├── package.json
+└── ...
+```
 
-### `npm start`
+## 环境准备
+确保已安装 Node.js 和 npm，可通过以下命令检查版本：
+```bash
+node -v
+npm -v
+```
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+## 安装依赖
+在项目根目录下运行以下命令安装项目依赖：
+```bash
+npm install
+```
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+## 开发模式
+在开发模式下运行项目，修改代码后会自动热更新：
+```bash
+npm start
+```
+打开 [http://localhost:3000](http://localhost:3000) 查看项目。
 
-### `npm test`
+## 运行测试
+运行测试用例：
+```bash
+npm test
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## 构建项目
+构建生产环境版本：
+```bash
+npm run build
+```
+构建后的文件会生成在 `build` 目录下。
 
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
-
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
-
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+## 部署
+将 `build` 目录下的文件部署到静态文件服务器即可。
