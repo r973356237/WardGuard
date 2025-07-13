@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { initializeDB } = require('./db');
+const systemRoutes = require('./routes/systemRoutes');
 
 // 初始化Express应用
 const app = express();
@@ -32,6 +33,8 @@ app.use('/api/medical-examinations', medicalExaminationRoutes);
 console.log('体检信息路由已挂载');
 app.use('/api/operation-records', operationRecordRoutes);
 console.log('操作记录路由已挂载');
+app.use('/api', systemRoutes);
+console.log('系统名称路由已挂载');
 
 // 基础路由测试
 app.get('/api', (req, res) => {

@@ -15,9 +15,9 @@ import Sidebar from './components/Sidebar';
 import './App.css';
 
 // 布局组件
-const MainLayout: React.FC = () => {
+const MainLayout: React.FC<{ systemName: string }> = ({ systemName }) => {
   const location = useLocation();
-  
+
   // 路由标题映射
   const routeTitles: { [key: string]: string } = {
     '/users': '用户管理',
@@ -32,27 +32,27 @@ const MainLayout: React.FC = () => {
   const { Title } = Typography;
 
   // 模拟用户数据 - 实际应用中应从认证系统获取
-interface User {
-  username: string;
-  role: string;
-}
+  interface User {
+    username: string;
+    role: string;
+  }
 
   const [user, setUser] = useState<User | null>(null);
-const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
-useEffect(() => {
-  // 获取当前用户信息
-  const fetchUserInfo = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      console.log('获取到的token:', token); // 调试日志: 检查token是否存在
-      if (!token) {
-        setLoading(false);
-        return;
-      }
+  useEffect(() => {
+    // 获取当前用户信息
+    const fetchUserInfo = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        console.log('获取到的token:', token); // 调试日志: 检查token是否存在
+        if (!token) {
+          setLoading(false);
+          return;
+        }
 
-      console.log('发送请求到:', '/api/users/me'); // 调试日志: 检查请求URL
-      const response = await fetch('/api/users/me', {
+        console.log('发送请求到:', '/api/users/me'); // 调试日志: 检查请求URL
+        const response = await fetch('/api/users/me', {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -68,38 +68,38 @@ useEffect(() => {
 
         // 验证数据是否正确获取
         console.log('用户信息获取成功:', data);
-    } catch (error) {
+      } catch (error) {
         console.error('获取用户信息失败:', error);
         // 清除无效token并跳转登录
         localStorage.removeItem('token');
         setUser(null);
       } finally {
-      setLoading(false);
-    }
+        setLoading(false);
+      }
+    };
+
+    fetchUserInfo();
+  }, []);
+
+  // 定义不同角色的默认头像
+  const defaultAvatars = {
+    admin: 'https://gw.alipayobjects.com/zos/rmsportal/BiazfanxmamNRoxxVxka.png', // 管理员头像
+    normal: 'https://gw.alipayobjects.com/zos/rmsportal/cnrhVkzwxjPwAaCfPbdc.png'   // 普通用户头像
   };
 
-  fetchUserInfo();
-}, []);
-
-// 定义不同角色的默认头像
-const defaultAvatars = {
-  admin: 'https://gw.alipayobjects.com/zos/rmsportal/BiazfanxmamNRoxxVxka.png', // 管理员头像
-  normal: 'https://gw.alipayobjects.com/zos/rmsportal/cnrhVkzwxjPwAaCfPbdc.png'   // 普通用户头像
-};
-
-const username = loading ? '加载中...' : user?.username || '未登录';
-// 将中文角色转换为头像类型键名
-const userType = user?.role === 'admin' ? 'admin' : 'normal';
+  const username = loading ? '加载中...' : user?.username || '未登录';
+  // 将中文角色转换为头像类型键名
+  const userType = user?.role === 'admin' ? 'admin' : 'normal';
 
   return (
     <AntLayout style={{ minHeight: '100vh' }}>
       <AntLayout.Sider
-          theme="dark"
-          width={200}
-          collapsed={collapsed}
-          onCollapse={setCollapsed}
-          style={{ boxShadow: '2px 0 8px rgba(0, 0, 0, 0.06)' }}
-        >
+        theme="dark"
+        width={200}
+        collapsed={collapsed}
+        onCollapse={setCollapsed}
+        style={{ boxShadow: '2px 0 8px rgba(0, 0, 0, 0.06)' }}
+      >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', padding: '16px', borderBottom: '1px solid #f0f0f0', color: 'white' }}>
             <Button
@@ -108,7 +108,7 @@ const userType = user?.role === 'admin' ? 'admin' : 'normal';
               onClick={() => setCollapsed(!collapsed)}
               style={{ marginRight: 8, color: 'white' }}
             />
-            <Title level={5} style={{ margin: 0, display: collapsed ? 'none' : 'block', color: 'white' }}>WardGuard</Title>
+            <Title level={5} style={{ margin: 0, display: collapsed ? 'none' : 'block', color: 'white' }}>{systemName}</Title>
           </div>
           <Sidebar />
         </div>
@@ -137,7 +137,7 @@ const userType = user?.role === 'admin' ? 'admin' : 'normal';
           </Dropdown>
         </AntLayout.Header>
         <AntLayout.Content style={{ padding: '24px' }}>
-          <Outlet />
+          <Outlet /> 
         </AntLayout.Content>
       </AntLayout>
     </AntLayout>
@@ -154,6 +154,45 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 const App: React.FC = () => {
+  const [systemName, setSystemName] = useState('WardGuard');
+
+  useEffect(() => {
+    const fetchSystemName = async () => {
+      try {
+        const response = await fetch('/api/system-name');
+        if (!response.ok) {
+          throw new Error('获取系统名称失败');
+        }
+        const data = await response.json();
+        setSystemName(data.systemName);
+      } catch (error) {
+        console.error('获取系统名称失败:', error);
+      }
+    };
+
+    fetchSystemName();
+  }, []);
+
+  const handleSetSystemName = async (name: string) => {
+    try {
+      const response = await fetch('/api/system-name', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ systemName: name })
+      });
+
+      if (!response.ok) {
+        throw new Error('设置系统名称失败');
+      }
+
+      setSystemName(name);
+    } catch (error) {
+      console.error('设置系统名称失败:', error);
+    }
+  };
+
   return (
     <Router>
       <Routes>
@@ -163,7 +202,7 @@ const App: React.FC = () => {
           path="/"
           element={
             <ProtectedRoute>
-              <MainLayout />
+              <MainLayout systemName={systemName} />
             </ProtectedRoute>
           }
         >
@@ -173,7 +212,10 @@ const App: React.FC = () => {
           <Route path="medicines" element={<Medicines />} />
           <Route path="supplies" element={<Supplies />} />
           <Route path="medical-examinations" element={<MedicalExaminations />} />
-          <Route path="settings" element={<Settings />} />
+          <Route 
+            path="settings"
+            element={<Settings systemName={systemName} setSystemName={handleSetSystemName} />}
+          />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

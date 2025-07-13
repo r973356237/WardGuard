@@ -8,11 +8,11 @@ type User = {
   username: string;
   role: string;
   status: string;
-  key?: string;
+  key: string;
 };
 
 const Users: React.FC = () => {
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
