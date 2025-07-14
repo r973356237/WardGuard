@@ -12,6 +12,9 @@ const PORT = 3000;
 app.use(cors());
 app.use(express.json());
 
+// 托管前端静态文件
+app.use(express.static('../client/build'));
+
 // 导入路由
 const userRoutes = require('./routes/userRoutes');
 const supplyRoutes = require('./routes/supplyRoutes');
@@ -40,6 +43,11 @@ console.log('系统名称路由已挂载');
 app.get('/api', (req, res) => {
   console.log('收到基础API请求');
   res.json({ success: true, message: '科室管理系统后端API已启动' });
+});
+
+// 将所有非API请求重定向到index.html，支持前端路由
+app.get('*', (req, res) => {
+  res.sendFile('../client/build/index.html', { root: __dirname });
 });
 
 // 初始化数据库连接并启动服务器
