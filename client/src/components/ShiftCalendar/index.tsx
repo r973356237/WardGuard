@@ -28,7 +28,7 @@ const ShiftCalendarComponent: React.FC = () => {
   const [selectedTeam, setSelectedTeam] = useState<TeamType>('一队');
   const [currentMonth, setCurrentMonth] = useState<Dayjs>(dayjs());
 
-  // 计算指定日期的班次 - 版本2.2（使用字符串日期计算）
+  // 计算指定日期的班次
   const calculateShift = (date: Dayjs, team: TeamType): ShiftType => {
     // 基准日期：2025年7月15日的班次安排
     const baseDate = dayjs('2025-07-15');
@@ -41,15 +41,6 @@ const ShiftCalendarComponent: React.FC = () => {
     const inputDate = new Date(inputDateStr);
     const baseDateTime = new Date(baseDateStr);
     const dayDiff = Math.floor((inputDate.getTime() - baseDateTime.getTime()) / (1000 * 60 * 60 * 24));
-    
-    // 调试信息
-    if (inputDateStr === '2025-07-14' && team === '一队') {
-      console.log('🔍 新的日期计算方法:');
-      console.log(`  输入日期字符串: ${inputDateStr}`);
-      console.log(`  基准日期字符串: ${baseDateStr}`);
-      console.log(`  计算的dayDiff: ${dayDiff}`);
-      console.log(`  原dayjs.diff结果: ${date.diff(baseDate, 'days')}`);
-    }
     
     // 班次表，根据需求文档中的示例逻辑
     // 按照4天循环：7月15日 -> 7月16日 -> 7月17日 -> 7月18日 -> 7月19日(=7月15日)
@@ -73,13 +64,6 @@ const ShiftCalendarComponent: React.FC = () => {
     let cyclePosition = dayDiff % 4;
     if (cyclePosition < 0) {
       cyclePosition += 4;
-    }
-    
-    // 继续调试信息
-    if (inputDateStr === '2025-07-14' && team === '一队') {
-      console.log(`  cyclePosition: ${cyclePosition}`);
-      console.log(`  班次: ${shiftTable[team][cyclePosition]}`);
-      console.log(`  当前时间: ${new Date().toLocaleTimeString()}`);
     }
     
     return shiftTable[team][cyclePosition];
@@ -139,6 +123,41 @@ const ShiftCalendarComponent: React.FC = () => {
   return (
     <ConfigProvider locale={zhCN}>
       <div className="shift-calendar">
+        {/* 当日排班情况 - 移到日历上方 */}
+        <Card 
+          title={`当日排班情况 (${selectedDate.format('YYYY年MM月DD日')})`}
+          size="small" 
+          style={{ marginBottom: 16 }}
+        >
+          <Row gutter={[16, 16]}>
+            {currentDateAllShifts.map(({ team, shift }) => {
+              // 根据班次类型设置不同的颜色
+              const shiftColors: Record<ShiftType, string> = {
+                '早班': '#1890ff', // blue
+                '白班': '#52c41a', // green
+                '夜班': '#722ed1', // purple
+                '休': '#d9d9d9'    // gray
+              };
+              
+              return (
+                <Col span={6} key={team}>
+                  <Card 
+                    size="small" 
+                    className={`shift-card ${shift === '休' ? 'rest-shift' : ''}`}
+                    style={{
+                      borderLeft: `4px solid ${shiftColors[shift]}`,
+                      backgroundColor: shift === '休' ? '#f5f5f5' : `${shiftColors[shift]}10`
+                    }}
+                  >
+                    <div className="team-name">{team}</div>
+                    <div className="shift-type" style={{ color: shift === '休' ? '#666' : shiftColors[shift] }}>{shift}</div>
+                  </Card>
+                </Col>
+              );
+            })}
+          </Row>
+        </Card>
+
         <Card
           title={
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -236,40 +255,6 @@ const ShiftCalendarComponent: React.FC = () => {
             );
           }}
         />
-        
-        <Card 
-          title="当日排班情况" 
-          size="small" 
-          style={{ marginTop: 16 }}
-        >
-          <Row gutter={[16, 16]}>
-            {currentDateAllShifts.map(({ team, shift }) => {
-              // 根据班次类型设置不同的颜色
-              const shiftColors: Record<ShiftType, string> = {
-                '早班': '#1890ff', // blue
-                '白班': '#52c41a', // green
-                '夜班': '#722ed1', // purple
-                '休': '#d9d9d9'    // gray
-              };
-              
-              return (
-                <Col span={6} key={team}>
-                  <Card 
-                    size="small" 
-                    className={`shift-card ${shift === '休' ? 'rest-shift' : ''}`}
-                    style={{
-                      borderLeft: `4px solid ${shiftColors[shift]}`,
-                      backgroundColor: shift === '休' ? '#f5f5f5' : `${shiftColors[shift]}10`
-                    }}
-                  >
-                    <div className="team-name">{team}</div>
-                    <div className="shift-type" style={{ color: shift === '休' ? '#666' : shiftColors[shift] }}>{shift}</div>
-                  </Card>
-                </Col>
-              );
-            })}
-          </Row>
-        </Card>
       </Card>
     </div>
     </ConfigProvider>

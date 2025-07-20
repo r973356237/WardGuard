@@ -1,19 +1,28 @@
 const express = require('express');
 const cors = require('cors');
-const jwt = require('jsonwebtoken');
+const path = require('path');
+const config = require('./config');
 const { initializeDB } = require('./db');
-const systemRoutes = require('./routes/systemRoutes');
+
+// 打印当前配置信息
+config.printConfig();
 
 // 初始化Express应用
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // 中间件配置
-app.use(cors());
+app.use(cors(config.getCorsConfig()));
 app.use(express.json());
 
-// 托管前端静态文件
-app.use(express.static('../client/build'));
+// 生产环境下托管前端静态文件
+if (config.isProduction()) {
+  const buildPath = path.join(__dirname, '../client/build');
+  app.use(express.static(buildPath));
+  console.log('生产环境：托管前端静态文件');
+} else {
+  console.log('开发环境：前端由开发服务器托管');
+}
 
 // 导入路由
 const userRoutes = require('./routes/userRoutes');
@@ -22,33 +31,49 @@ const medicineRoutes = require('./routes/medicineRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
 const medicalExaminationRoutes = require('./routes/medicalExaminationRoutes');
 const operationRecordRoutes = require('./routes/operationRecordRoutes');
+const systemRoutes = require('./routes/systemRoutes');
 
 // 使用路由
 app.use('/api/users', userRoutes);
-console.log('用户路由已挂载');
 app.use('/api/supplies', supplyRoutes);
-console.log('物资路由已挂载');
 app.use('/api/medicines', medicineRoutes);
-console.log('药品路由已挂载');
 app.use('/api/employees', employeeRoutes);
-console.log('人员路由已挂载');
 app.use('/api/medical-examinations', medicalExaminationRoutes);
-console.log('体检信息路由已挂载');
 app.use('/api/operation-records', operationRecordRoutes);
-console.log('操作记录路由已挂载');
 app.use('/api', systemRoutes);
-console.log('系统名称路由已挂载');
+
+if (config.isDevelopment()) {
+  console.log('所有API路由已挂载 (开发环境)');
+} else {
+  console.log('所有API路由已挂载 (生产环境)');
+}
 
 // 基础路由测试
 app.get('/api', (req, res) => {
-  console.log('收到基础API请求');
-  res.json({ success: true, message: '科室管理系统后端API已启动' });
+  res.json({ 
+    success: true, 
+    message: '科室管理系统后端API已启动',
+    environment: config.isProduction() ? 'production' : 'development',
+    version: '1.0.0'
+  });
 });
 
-// 将所有非API请求重定向到index.html，支持前端路由
-app.get('*', (req, res) => {
-  res.sendFile('index.html', { root: '../client/build' });
+// 健康检查接口
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    environment: process.env.NODE_ENV,
+    timestamp: new Date().toISOString()
+  });
 });
+
+// 生产环境下，将所有非API请求重定向到index.html，支持前端路由
+if (config.isProduction()) {
+  app.get('*', (req, res) => {
+    const buildPath = path.join(__dirname, '../client/build');
+    res.sendFile('index.html', { root: buildPath });
+  });
+}
 
 // 初始化数据库连接并启动服务器
 async function startServer() {

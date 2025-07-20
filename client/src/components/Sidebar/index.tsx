@@ -18,7 +18,7 @@ const Sidebar: React.FC = () => {
     {
       key: '/',
       icon: <DashboardOutlined />,
-      label: <Link to="/">仪表盘</Link>,
+      label: <Link to="/">主页</Link>,
     },
     {
       key: '/users',

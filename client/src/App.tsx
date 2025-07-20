@@ -5,14 +5,15 @@ import { MenuUnfoldOutlined, MenuFoldOutlined } from '@ant-design/icons';
 import LoginPage from './pages/Login';
 import RegisterPage from './pages/Register';
 import Dashboard from './pages/Dashboard';
-import Employees from './pages/Employees';
 import Users from './pages/Users';
+import Employees from './pages/Employees';
 import Medicines from './pages/Medicines';
 import Supplies from './pages/Supplies';
 import MedicalExaminations from './pages/MedicalExaminations';
 import Settings from './pages/Settings';
 import ShiftCalendarPage from './pages/ShiftCalendar';
 import Sidebar from './components/Sidebar';
+import { buildApiUrl, API_ENDPOINTS } from './config/api';
 import './App.css';
 
 // 布局组件
@@ -21,6 +22,7 @@ const MainLayout: React.FC<{ systemName: string }> = ({ systemName }) => {
 
   // 路由标题映射
   const routeTitles: { [key: string]: string } = {
+    '/': '主页',
     '/users': '用户管理',
     '/employees': '员工管理',
     '/medicines': '药品管理',
@@ -47,14 +49,12 @@ const MainLayout: React.FC<{ systemName: string }> = ({ systemName }) => {
     const fetchUserInfo = async () => {
       try {
         const token = localStorage.getItem('token');
-        console.log('获取到的token:', token); // 调试日志: 检查token是否存在
         if (!token) {
           setLoading(false);
           return;
         }
 
-        console.log('发送请求到:', '/api/users/me'); // 调试日志: 检查请求URL
-        const response = await fetch('/api/users/me', {
+        const response = await fetch(buildApiUrl(API_ENDPOINTS.USER_ME), {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -65,11 +65,11 @@ const MainLayout: React.FC<{ systemName: string }> = ({ systemName }) => {
         }
 
         const data = await response.json();
-        // 直接使用data而非data.data，适配API返回结构
-        setUser(data.data);
-
-        // 验证数据是否正确获取
-        console.log('用户信息获取成功:', data);
+        if (data.success && data.data) {
+          setUser(data.data);
+        } else {
+          throw new Error('获取用户信息失败');
+        }
       } catch (error) {
         console.error('获取用户信息失败:', error);
         // 清除无效token并跳转登录
@@ -161,7 +161,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const fetchSystemName = async () => {
       try {
-        const response = await fetch('/api/system-name');
+        const response = await fetch(buildApiUrl(API_ENDPOINTS.SYSTEM_NAME));
         if (!response.ok) {
           throw new Error('获取系统名称失败');
         }
@@ -177,7 +177,7 @@ const App: React.FC = () => {
 
   const handleSetSystemName = async (name: string) => {
     try {
-      const response = await fetch('/api/system-name', {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.SYSTEM_NAME), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

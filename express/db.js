@@ -1,17 +1,8 @@
-require('dotenv').config();
 const mysql = require('mysql2/promise');
+const config = require('./config');
 
-// 数据库连接配置
-const dbConfig = {
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  port: process.env.DB_PORT,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-};
+// 获取数据库连接配置
+const dbConfig = config.getDatabaseConfig();
 
 // 创建数据库连接池
 let dbPool;
@@ -37,10 +28,21 @@ async function initializeDB() {
       // 测试连接
       const connection = await dbPool.getConnection();
       connection.release();
-      console.log('Database connected successfully');
+      
+      if (config.isDevelopment()) {
+        console.log('数据库连接成功 (开发环境)');
+      } else {
+        console.log('数据库连接成功 (生产环境)');
+      }
+      
       resolve(dbPool);
     } catch (error) {
-      console.error('Database connection failed:', error.message, error.stack);
+      console.error('数据库连接失败:', error.message);
+      
+      if (config.isDevelopment()) {
+        console.error('详细错误信息:', error.stack);
+      }
+      
       console.warn('继续运行，但数据库功能将不可用');
       resolve(null); // 不终止进程，继续运行
     } finally {

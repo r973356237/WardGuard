@@ -11,7 +11,6 @@ const Settings: React.FC<SettingsProps> = ({ systemName, setSystemName }) => {
   const [form] = Form.useForm();
 
   const onFinish = (values: any) => {
-    console.log('保存系统设置:', values);
     setSystemName(values.systemName);
     message.success('系统设置保存成功');
   };
@@ -43,4 +42,4 @@ const Settings: React.FC<SettingsProps> = ({ systemName, setSystemName }) => {
   );
 };
 
-export default Settings;  
+export default Settings;

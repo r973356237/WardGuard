@@ -2,6 +2,7 @@ import React from 'react';
 import { Form, Input, Button, Card, message } from 'antd';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
 
 const RegisterPage: React.FC = () => {
   const [loading, setLoading] = React.useState<boolean>(false);
@@ -10,7 +11,7 @@ const RegisterPage: React.FC = () => {
   const handleSubmit = async (values: { username: string; password: string }) => {
     try {
       setLoading(true);
-      await axios.post('http://localhost:3000/api/users/register', values);
+      await axios.post(buildApiUrl(API_ENDPOINTS.USER_REGISTER), values);
       message.success('注册成功，请登录');
       navigate('/login');
     } catch (error) {

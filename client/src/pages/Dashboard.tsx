@@ -66,7 +66,6 @@ const Dashboard: React.FC = () => {
 
         // 处理药品过期数据
         const medicines = medicineRes.data?.data || [];
-        console.log('获取到的药品数据:', medicines);
         const expiredMedicines = medicines.filter((m: { expiration_date: string; production_date: string; validity_period_days: number }) => {
           let expirationDate;
           if (m.expiration_date) {
@@ -79,13 +78,10 @@ const Dashboard: React.FC = () => {
           }
           return expirationDate < new Date();
         });
-        console.log('过期的药品数据:', expiredMedicines);
         const medicineExpireRate = medicines.length > 0 ? (expiredMedicines.length / medicines.length) * 100 : 0;
-        console.log('药品过期比例:', medicineExpireRate);
 
         // 处理物资过期数据
         const supplies = supplyRes.data?.data || [];
-        console.log('获取到的物资数据:', supplies);
         const expiredSupplies = supplies.filter((s: { expiration_date: string; production_date: string; validity_period_days: number }) => {
           let expirationDate;
           if (s.expiration_date) {
@@ -98,9 +94,7 @@ const Dashboard: React.FC = () => {
           }
           return expirationDate < new Date();
         });
-        console.log('过期的物资数据:', expiredSupplies);
         const supplyExpireRate = supplies.length > 0 ? (expiredSupplies.length / supplies.length) * 100 : 0;
-        console.log('物资过期比例:', supplyExpireRate);
 
         // 整合仪表盘数据
         setDashboardData({

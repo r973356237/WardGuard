@@ -1,9 +1,10 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { getPool } = require('../db');
+const config = require('../config');
 
-// JWT密钥（实际生产环境应使用环境变量）
-const JWT_SECRET = 'your_jwt_secret_key';
+// 从配置中获取JWT密钥
+const JWT_SECRET = config.getJWTSecret();
 
 /**
  * 用户注册控制器

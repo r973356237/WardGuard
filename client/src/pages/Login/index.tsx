@@ -2,6 +2,7 @@ import React from 'react';
 import { Form, Input, Button, Card, message } from 'antd';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
+import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
 
 const LoginPage: React.FC = () => {
   const [loading, setLoading] = React.useState<boolean>(false);
@@ -10,7 +11,7 @@ const LoginPage: React.FC = () => {
   const handleSubmit = async (values: { username: string; password: string }) => {
     try {
       setLoading(true);
-      const response = await axios.post('http://localhost:3000/api/users/login', values);
+      const response = await axios.post(buildApiUrl(API_ENDPOINTS.USER_LOGIN), values);
       // 从响应数据的data字段提取token和user
       const { token, user } = response.data.data;
 
