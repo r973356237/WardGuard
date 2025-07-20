@@ -1,8 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Row, Col, Spin, message, Statistic, Progress, Badge } from 'antd';
-import { WarningOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { 
+  WarningOutlined, 
+  CheckCircleOutlined, 
+  UserOutlined, 
+  TeamOutlined, 
+  MedicineBoxOutlined 
+} from '@ant-design/icons';
 import axios from 'axios';
 import type { ProgressProps } from 'antd';
+import ShiftCalendar from '../components/ShiftCalendar';
 
 // 定义数据类型接口
 interface ModuleData {
@@ -125,113 +132,121 @@ const Dashboard: React.FC = () => {
   }, []);
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h2 style={{ marginBottom: '20px' }}>系统数据总览</h2>
-
-      {/* 数据概览卡片行 */}
-      <Row gutter={[16, 16]} style={{ marginBottom: '20px' }}>
-        <Col xs={24} sm={4} lg={4} xl={4}>
-          <Card bordered={false} className="stat-card">
-            <Statistic
-              title="总用户数"
-              value={dashboardData.modules.find(m => m.name === '用户')?.value || 0}
-              prefix={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={4} lg={4} xl={4}>
-          <Card bordered={false} className="stat-card">
-            <Statistic
-              title="员工总数"
-              value={dashboardData.modules.find(m => m.name === '员工')?.value || 0}
-              prefix={<CheckCircleOutlined style={{ color: '#1890ff' }} />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={4} lg={4} xl={4}>
-          <Card bordered={false} className="stat-card">
-            <Statistic
-              title="药品总数"
-              value={dashboardData.modules.find(m => m.name === '药品')?.value || 0}
-              suffix={<Badge status="error" text={`${dashboardData.alerts.expiredMedicines} 过期`} />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={4} lg={4} xl={4}>
-          <Card bordered={false} className="stat-card">
-            <Statistic
-              title="体检记录"
-              value={dashboardData.modules.find(m => m.name === '体检记录')?.value || 0}
-              prefix={<CheckCircleOutlined style={{ color: '#faad14' }} />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={4} lg={4} xl={4}>
-          <Card bordered={false} className="stat-card">
-            <Statistic
-              title="物资总数"
-              value={dashboardData.modules.find(m => m.name === '物资')?.value || 0}
-              suffix={<Badge status="warning" text={`${dashboardData.alerts.expiredSupplies} 过期`} />}
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      {/* 异常情况统计 */}
+    <div >
+      {/* 左右布局结构 */}
       <Row gutter={[16, 16]}>
-        {/* 药品过期情况 */}
-        <Col xs={24} lg={12}> 
-          <Card title="药品过期情况">
-            <Spin spinning={loading} tip="正在加载数据...">
-              <div style={{ padding: '20px' }}>
-                <Progress
-                  percent={dashboardData.rates.medicineExpireRate}
-                  status={dashboardData.rates.medicineExpireRate > 10 ? 'exception' : 'active' as ProgressProps['status']}
-                  size="default"
-                  format={(percent) => `${percent?.toFixed(1)}% 药品已过期`}
+        {/* 左侧：倒班日历 */}
+        <Col xs={24} lg={12}>
+          <Card title="倒班日历" bordered={false} style={{ height: '100%' }}>
+            <ShiftCalendar />
+          </Card>
+        </Col>
+        
+        {/* 右侧：系统数据总览 */}
+        <Col xs={24} lg={12}>
+          {/* 数据概览卡片 */}
+          <Row gutter={[16, 16]} style={{ marginBottom: '16px' }}>
+            <Col xs={12} sm={8} lg={8}>
+              <Card bordered={false} className="stat-card">
+                <Statistic
+                  title="总用户数"
+                  value={dashboardData.modules.find(m => m.name === '用户')?.value || 0}
+                  prefix={<UserOutlined style={{ color: '#52c41a' }} />}
                 />
-                <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', color: dashboardData.alerts.expiredMedicines > 0 ? '#ff4d4f' : '#52c41a' }}>
-                  {dashboardData.alerts.expiredMedicines > 0 ? (
-                    <> 
-                      <WarningOutlined style={{ marginRight: '8px' }} />
-                      <span>共有 {dashboardData.alerts.expiredMedicines} 种药品已过期，请及时处理</span>
-                    </>
-                  ) : (
-                    <> 
-                      <CheckCircleOutlined style={{ marginRight: '8px' }} />
-                      <span>所有药品均在有效期内</span>
-                    </>
-                  )}
-                </div>
+              </Card>
+            </Col>
+            <Col xs={12} sm={8} lg={8}>
+              <Card bordered={false} className="stat-card">
+                <Statistic
+                  title="员工总数"
+                  value={dashboardData.modules.find(m => m.name === '员工')?.value || 0}
+                  prefix={<TeamOutlined style={{ color: '#1890ff' }} />}
+                />
+              </Card>
+            </Col>
+            <Col xs={12} sm={8} lg={8}>
+              <Card bordered={false} className="stat-card">
+                <Statistic
+                  title="体检记录"
+                  value={dashboardData.modules.find(m => m.name === '体检记录')?.value || 0}
+                  prefix={<MedicineBoxOutlined style={{ color: '#faad14' }} />}
+                />
+              </Card>
+            </Col>
+          </Row>
+
+          {/* 药品过期情况 */}
+          <Card title="药品过期情况" style={{ marginBottom: '16px' }}>
+            <Spin spinning={loading} tip="正在加载数据...">
+              <div style={{ padding: '16px' }}>
+                <Row gutter={[16, 0]}>
+                  <Col span={8}>
+                    <Statistic
+                      title="药品总数"
+                      value={dashboardData.modules.find(m => m.name === '药品')?.value || 0}
+                      suffix={<Badge status="error" text={`${dashboardData.alerts.expiredMedicines} 过期`} />}
+                    />
+                  </Col>
+                  <Col span={16}>
+                    <Progress
+                      percent={dashboardData.rates.medicineExpireRate}
+                      status={dashboardData.rates.medicineExpireRate > 10 ? 'exception' : 'active' as ProgressProps['status']}
+                      size="default"
+                      format={(percent) => `${percent?.toFixed(1)}% 药品已过期`}
+                    />
+                    <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', color: dashboardData.alerts.expiredMedicines > 0 ? '#ff4d4f' : '#52c41a' }}>
+                      {dashboardData.alerts.expiredMedicines > 0 ? (
+                        <> 
+                          <WarningOutlined style={{ marginRight: '8px' }} />
+                          <span>共有 {dashboardData.alerts.expiredMedicines} 种药品已过期，请及时处理</span>
+                        </>
+                      ) : (
+                        <> 
+                          <CheckCircleOutlined style={{ marginRight: '8px' }} />
+                          <span>所有药品均在有效期内</span>
+                        </>
+                      )}
+                    </div>
+                  </Col>
+                </Row>
               </div>
             </Spin>
           </Card>
-        </Col>
 
-        {/* 物资过期情况 */}
-        <Col xs={24} lg={12}> 
+          {/* 物资过期情况 */}
           <Card title="物资过期情况">
             <Spin spinning={loading} tip="正在加载数据...">
-              <div style={{ padding: '20px' }}>
-                <Progress
-                  percent={dashboardData.rates.supplyExpireRate}
-                  status={dashboardData.rates.supplyExpireRate > 10 ? 'exception' : 'active' as ProgressProps['status']}
-                  size="default"
-                  format={(percent) => `${percent?.toFixed(1)}% 物资已过期`}
-                />
-                <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', color: dashboardData.alerts.expiredSupplies > 0 ? '#ff4d4f' : '#52c41a' }}>
-                  {dashboardData.alerts.expiredSupplies > 0 ? (
-                    <> 
-                      <WarningOutlined style={{ marginRight: '8px' }} />
-                      <span>共有 {dashboardData.alerts.expiredSupplies} 种物资已过期，请及时处理</span>
-                    </>
-                  ) : (
-                    <> 
-                      <CheckCircleOutlined style={{ marginRight: '8px' }} />
-                      <span>所有物资均在有效期内</span>
-                    </>
-                  )}
-                </div>
+              <div style={{ padding: '16px' }}>
+                <Row gutter={[16, 0]}>
+                  <Col span={8}>
+                    <Statistic
+                      title="物资总数"
+                      value={dashboardData.modules.find(m => m.name === '物资')?.value || 0}
+                      suffix={<Badge status="warning" text={`${dashboardData.alerts.expiredSupplies} 过期`} />}
+                    />
+                  </Col>
+                  <Col span={16}>
+                    <Progress
+                      percent={dashboardData.rates.supplyExpireRate}
+                      status={dashboardData.rates.supplyExpireRate > 10 ? 'exception' : 'active' as ProgressProps['status']}
+                      size="default"
+                      format={(percent) => `${percent?.toFixed(1)}% 物资已过期`}
+                    />
+                    <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', color: dashboardData.alerts.expiredSupplies > 0 ? '#ff4d4f' : '#52c41a' }}>
+                      {dashboardData.alerts.expiredSupplies > 0 ? (
+                        <> 
+                          <WarningOutlined style={{ marginRight: '8px' }} />
+                          <span>共有 {dashboardData.alerts.expiredSupplies} 种物资已过期，请及时处理</span>
+                        </>
+                      ) : (
+                        <> 
+                          <CheckCircleOutlined style={{ marginRight: '8px' }} />
+                          <span>所有物资均在有效期内</span>
+                        </>
+                      )}
+                    </div>
+                  </Col>
+                </Row>
               </div>
             </Spin>
           </Card>

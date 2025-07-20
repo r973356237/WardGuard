@@ -1,0 +1,90 @@
+.shift-calendar .ant-picker-calendar-date-content {
+  height: 70px;
+}
+
+.shift-calendar .date-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: space-between;
+  padding-bottom: 4px;
+  padding-top: 4px;
+}
+
+/* 移除农历日期样式 */
+
+.shift-calendar .ant-badge {
+  font-size: 12px;
+}
+
+.shift-calendar .shift-badge {
+  margin-top: auto;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.shift-calendar .team-name {
+  font-weight: bold;
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.shift-calendar .shift-type {
+  text-align: center;
+  font-size: 16px;
+}
+
+.shift-calendar .shift-card {
+  border-radius: 4px;
+  transition: all 0.3s;
+}
+
+.shift-calendar .shift-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.shift-calendar .rest-shift {
+  background-color: #f5f5f5;
+}
+
+/* 班次颜色 */
+.shift-calendar .ant-badge-status-blue {
+  background-color: #1890ff;
+}
+
+.shift-calendar .ant-badge-status-green {
+  background-color: #52c41a;
+}
+
+.shift-calendar .ant-badge-status-purple {
+  background-color: #722ed1;
+}
+
+.shift-calendar .ant-badge-status-gray {
+  background-color: #d9d9d9;
+}
+
+/* 修复日期选择样式问题 */
+/* 移除默认的今天高亮样式 */
+.shift-calendar .ant-picker-calendar-date-today .ant-picker-calendar-date-value {
+  border: none !important;
+  background: transparent !important;
+  color: inherit !important;
+}
+
+/* 只为选中的日期添加高亮样式 */
+.shift-calendar .ant-picker-calendar-date-selected .ant-picker-calendar-date-value {
+  background: #1890ff !important;
+  color: #fff !important;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+/* 确保今天的日期在未选中时不显示特殊样式 */
+.shift-calendar .ant-picker-calendar-date-today:not(.ant-picker-calendar-date-selected) .ant-picker-calendar-date-value {
+  border: none !important;
+  background: transparent !important;
+  color: inherit !important;
+}

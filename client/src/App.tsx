@@ -11,6 +11,7 @@ import Medicines from './pages/Medicines';
 import Supplies from './pages/Supplies';
 import MedicalExaminations from './pages/MedicalExaminations';
 import Settings from './pages/Settings';
+import ShiftCalendarPage from './pages/ShiftCalendar';
 import Sidebar from './components/Sidebar';
 import './App.css';
 
@@ -26,7 +27,8 @@ const MainLayout: React.FC<{ systemName: string }> = ({ systemName }) => {
     '/medical-examinations': '体检管理',
     '/supplies': '物资管理',
     '/settings': '系统设置',
-    '/dashboard': '仪表盘'
+    '/dashboard': '仪表盘',
+    '/shift-calendar': '倒班日历'
   };
   const [collapsed, setCollapsed] = useState(false);
   const { Title } = Typography;
@@ -212,6 +214,7 @@ const App: React.FC = () => {
           <Route path="medicines" element={<Medicines />} />
           <Route path="supplies" element={<Supplies />} />
           <Route path="medical-examinations" element={<MedicalExaminations />} />
+          <Route path="shift-calendar" element={<ShiftCalendarPage />} />
           <Route 
             path="settings"
             element={<Settings systemName={systemName} setSystemName={handleSetSystemName} />}
