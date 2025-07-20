@@ -8,7 +8,7 @@ const RegisterPage: React.FC = () => {
   const [loading, setLoading] = React.useState<boolean>(false);
   const navigate = useNavigate();
 
-  const handleSubmit = async (values: { username: string; password: string }) => {
+  const handleSubmit = async (values: { username: string; name: string; password: string; email: string }) => {
     try {
       setLoading(true);
       await axios.post(buildApiUrl(API_ENDPOINTS.USER_REGISTER), values);
@@ -27,7 +27,7 @@ const RegisterPage: React.FC = () => {
       <Card title="用户注册" style={{ width: 350 }}>
         <Form
           name="registerForm"
-          initialValues={{ username: '', password: '' }}
+          initialValues={{ username: '', name: '', email: '', password: '' }}
           onFinish={handleSubmit}
         >
           <Form.Item
@@ -38,6 +38,16 @@ const RegisterPage: React.FC = () => {
             ]}
           >
             <Input placeholder="用户名" />
+          </Form.Item>
+
+          <Form.Item
+            name="name"
+            rules={[
+              { required: true, message: '请输入姓名' },
+              { min: 2, message: '姓名至少2个字符' }
+            ]}
+          >
+            <Input placeholder="姓名" />
           </Form.Item>
 
           <Form.Item

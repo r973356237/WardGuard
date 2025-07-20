@@ -58,8 +58,10 @@ export const buildApiUrl = (endpoint: string): string => {
 };
 
 // 导出默认配置
-export default {
+const apiConfig = {
   ...API_CONFIG,
   endpoints: API_ENDPOINTS,
   buildUrl: buildApiUrl,
 };
+
+export default apiConfig;

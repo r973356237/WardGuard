@@ -12,12 +12,12 @@ const JWT_SECRET = config.getJWTSecret();
 exports.register = async (req, res) => {
   console.log('收到用户注册请求:', req.body);
   try {
-    const { username, password, email, role } = req.body;
+    const { username, name, password, email, role } = req.body;
 
     // 验证请求参数
-    if (!username || !password || !email) {
-      console.log('注册参数不完整:', { username, password, email });
-      return res.status(400).json({ success: false, message: '用户名、密码和邮箱为必填项' });
+    if (!username || !name || !password || !email) {
+      console.log('注册参数不完整:', { username, name, password, email });
+      return res.status(400).json({ success: false, message: '用户名、姓名、密码和邮箱为必填项' });
     }
 
     // 检查用户是否已存在
@@ -35,15 +35,15 @@ exports.register = async (req, res) => {
 
     // 插入新用户
       const [result] = await pool.execute(
-        'INSERT INTO users (username, password, email, role) VALUES (?, ?, ?, ?)',
-        [username, hashedPassword, email, role || 'normal'] // 保持默认角色为普通用户
+        'INSERT INTO users (username, name, password, email, role) VALUES (?, ?, ?, ?, ?)',
+        [username, name, hashedPassword, email, role || 'normal'] // 保持默认角色为普通用户
       );
 
-    console.log('用户注册成功:', { id: result.insertId, username });
+    console.log('用户注册成功:', { id: result.insertId, username, name });
     res.status(201).json({
       success: true,
       message: '注册成功',
-      data: { userId: result.insertId, username, email, role: role || 'normal' }
+      data: { userId: result.insertId, username, name, email, role: role || 'normal' }
     });
   } catch (err) {
     console.error('注册错误 - SQL状态:', err.sqlState);
@@ -60,7 +60,7 @@ exports.register = async (req, res) => {
 exports.getAllUsers = async (req, res) => {
   try {
     const pool = await getPool();
-    const [users] = await pool.execute('SELECT id, username, email, role, status FROM users');
+    const [users] = await pool.execute('SELECT id, username, name, email, role, status FROM users');
     
     res.json({
       success: true,
@@ -78,7 +78,7 @@ exports.getAllUsers = async (req, res) => {
 exports.getMe = async (req, res) => {
   try {
     const pool = await getPool();
-    const [users] = await pool.execute('SELECT id, username, email, role FROM users WHERE id = ?', [req.user.userId]);
+    const [users] = await pool.execute('SELECT id, username, name, email, role FROM users WHERE id = ?', [req.user.userId]);
     
     if (users.length === 0) {
       return res.status(404).json({ success: false, message: '用户不存在' });
@@ -135,7 +135,7 @@ exports.login = async (req, res) => {
     res.json({
       success: true,
       message: '登录成功',
-      data: { token, user: { id: user.id, username: user.username, email: user.email, role: user.role } }
+      data: { token, user: { id: user.id, username: user.username, name: user.name, email: user.email, role: user.role } }
     });
   } catch (err) {
     console.error('登录错误:', err);
@@ -149,12 +149,12 @@ exports.login = async (req, res) => {
 exports.createUser = async (req, res) => {
   console.log('收到创建用户请求:', req.body);
   try {
-    const { username, password, email, role, status } = req.body;
+    const { username, name, password, email, role, status } = req.body;
 
     // 验证请求参数
-    if (!username || !password || !email) {
-      console.log('创建用户参数不完整:', { username, password, email });
-      return res.status(400).json({ success: false, message: '用户名、密码和邮箱为必填项' });
+    if (!username || !name || !password || !email) {
+      console.log('创建用户参数不完整:', { username, name, password, email });
+      return res.status(400).json({ success: false, message: '用户名、姓名、密码和邮箱为必填项' });
     }
 
     // 检查用户是否已存在
@@ -179,15 +179,15 @@ exports.createUser = async (req, res) => {
 
     // 插入新用户
     const [result] = await pool.execute(
-      'INSERT INTO users (username, password, email, role, status) VALUES (?, ?, ?, ?, ?)',
-      [username, hashedPassword, email, role || 'user', status || 'active']
+      'INSERT INTO users (username, name, password, email, role, status) VALUES (?, ?, ?, ?, ?, ?)',
+      [username, name, hashedPassword, email, role || 'user', status || 'active']
     );
 
-    console.log('用户创建成功:', { id: result.insertId, username });
+    console.log('用户创建成功:', { id: result.insertId, username, name });
     res.status(201).json({
       success: true,
       message: '用户创建成功',
-      data: { id: result.insertId, username, email, role: role || 'user', status: status || 'active' }
+      data: { id: result.insertId, username, name, email, role: role || 'user', status: status || 'active' }
     });
   } catch (err) {
     console.error('创建用户错误 - SQL状态:', err.sqlState);
@@ -205,12 +205,12 @@ exports.updateUser = async (req, res) => {
   console.log('收到更新用户请求:', { id: req.params.id, body: req.body });
   try {
     const { id } = req.params;
-    const { username, email, role, status, password } = req.body;
+    const { username, name, email, role, status, password } = req.body;
 
     // 验证请求参数
-    if (!username || !email) {
-      console.log('更新用户参数不完整:', { username, email });
-      return res.status(400).json({ success: false, message: '用户名和邮箱为必填项' });
+    if (!username || !name || !email) {
+      console.log('更新用户参数不完整:', { username, name, email });
+      return res.status(400).json({ success: false, message: '用户名、姓名和邮箱为必填项' });
     }
 
     const pool = await getPool();
@@ -237,8 +237,8 @@ exports.updateUser = async (req, res) => {
     }
 
     // 构建更新SQL
-    let updateSql = 'UPDATE users SET username = ?, email = ?, role = ?, status = ?';
-    let updateParams = [username, email, role || 'user', status || 'active'];
+    let updateSql = 'UPDATE users SET username = ?, name = ?, email = ?, role = ?, status = ?';
+    let updateParams = [username, name, email, role || 'user', status || 'active'];
 
     // 如果提供了新密码，则更新密码
     if (password && password.trim() !== '') {
@@ -260,11 +260,11 @@ exports.updateUser = async (req, res) => {
       return res.status(404).json({ success: false, message: '用户不存在或更新失败' });
     }
 
-    console.log('用户更新成功:', { id, username });
+    console.log('用户更新成功:', { id, username, name });
     res.json({
       success: true,
       message: '用户更新成功',
-      data: { id: parseInt(id), username, email, role: role || 'user', status: status || 'active' }
+      data: { id: parseInt(id), username, name, email, role: role || 'user', status: status || 'active' }
     });
   } catch (err) {
     console.error('更新用户错误 - SQL状态:', err.sqlState);
@@ -335,7 +335,7 @@ exports.getMe = async (req, res) => {
 
     const decoded = jwt.verify(token, JWT_SECRET);
     const pool = await getPool();
-      const [users] = await pool.execute('SELECT id, username, email, role FROM users WHERE id = ?', [decoded.userId]);
+      const [users] = await pool.execute('SELECT id, username, name, email, role FROM users WHERE id = ?', [decoded.userId]);
 
     if (users.length === 0) {
       console.log('用户不存在:', decoded.userId);

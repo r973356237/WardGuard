@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Form, Input, Button, Spin, Space, Modal, Select, Popconfirm, Row, Col, message, DatePicker } from 'antd';
+import { Card, Table, Form, Input, Button, Spin, Space, Modal, Popconfirm, Row, Col, message, DatePicker } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import apiClient from '../config/axios';
@@ -190,29 +190,33 @@ const Supplies: React.FC = () => {
     setCurrentPage(1);
   };
 
+  // 处理筛选和排序
   useEffect(() => {
     let filtered: Supply[] = [...supplies];
     
+    // 应用筛选条件
     const { supply_name, storage_location, production_date, expiration_start, expiration_end } = searchParams;
     if (supply_name) {
-      filtered = filtered.filter(sup => 
-        sup.supply_name.toLowerCase().includes(supply_name.toLowerCase())
+      filtered = filtered.filter(supply => 
+        supply.supply_name.toLowerCase().includes(supply_name.toLowerCase())
       );
     }
     if (storage_location) {
-      filtered = filtered.filter(sup => 
-        storage_location ? sup.storage_location.toLowerCase().includes(storage_location.toLowerCase()) : true
+      filtered = filtered.filter(supply => 
+        storage_location ? supply.storage_location.toLowerCase().includes(storage_location.toLowerCase()) : true
       );
     }
+    // 生产日期筛选
     if (production_date) {
-      filtered = filtered.filter(sup => sup.production_date === production_date);
+      filtered = filtered.filter(supply => supply.production_date === production_date);
     }
+    // 有效期范围筛选
     if (expiration_start || expiration_end) {
-      filtered = filtered.filter(sup => {
-        if (!sup.production_date || sup.validity_period_days === undefined) return false;
-        const productionDate = new Date(sup.production_date);
+      filtered = filtered.filter(supply => {
+        if (!supply.production_date || supply.validity_period_days === undefined) return false;
+        const productionDate = new Date(supply.production_date);
         if (isNaN(productionDate.getTime())) return false;
-        const validityDays = Number(sup.validity_period_days);
+        const validityDays = Number(supply.validity_period_days);
         if (isNaN(validityDays) || validityDays <= 0) return false;
         const expirationDate = new Date(productionDate);
         expirationDate.setDate(productionDate.getDate() + validityDays);
@@ -224,7 +228,28 @@ const Supplies: React.FC = () => {
       });
     }
 
+    // 应用排序（确保默认排序始终存在）
     filtered.sort((a, b) => {
+      // 首先按过期状态排序，过期的排在前面
+      const getExpirationStatus = (supply: Supply) => {
+        if (!supply.production_date || supply.validity_period_days === undefined) return false;
+        const productionDate = new Date(supply.production_date);
+        if (isNaN(productionDate.getTime())) return false;
+        const validityDays = Number(supply.validity_period_days);
+        if (isNaN(validityDays) || validityDays <= 0) return false;
+        const expirationDate = new Date(productionDate);
+        expirationDate.setDate(productionDate.getDate() + validityDays);
+        return expirationDate < new Date();
+      };
+      
+      const aExpired = getExpirationStatus(a);
+      const bExpired = getExpirationStatus(b);
+      
+      // 过期的物品排在前面
+      if (aExpired && !bExpired) return -1;
+      if (!aExpired && bExpired) return 1;
+      
+      // 如果过期状态相同，则按指定字段排序
       const field = sorting.field as keyof Supply;
       if (field === 'supply_name' || field === 'storage_location') {
         const valueA = a[field] as string;
@@ -239,11 +264,11 @@ const Supplies: React.FC = () => {
         const dateB = new Date(b.production_date).getTime();
         return sorting.order === 'ascend' ? dateA - dateB : dateB - dateA;
       } else if (field === 'expiration_date') {
-        const getExpirationDate = (sup: Supply) => {
-          if (!sup.production_date || sup.validity_period_days === undefined) return 0;
-          const productionDate = new Date(sup.production_date);
+        const getExpirationDate = (supply: Supply) => {
+          if (!supply.production_date || supply.validity_period_days === undefined) return 0;
+          const productionDate = new Date(supply.production_date);
           if (isNaN(productionDate.getTime())) return 0;
-          const validityDays = Number(sup.validity_period_days);
+          const validityDays = Number(supply.validity_period_days);
           if (isNaN(validityDays) || validityDays <= 0) return 0;
           const expirationDate = new Date(productionDate);
           expirationDate.setDate(productionDate.getDate() + validityDays);
@@ -253,10 +278,13 @@ const Supplies: React.FC = () => {
         const dateB = getExpirationDate(b);
         return sorting.order === 'ascend' ? dateA - dateB : dateB - dateA;
       }
+      // 默认按ID排序
       return sorting.order === 'ascend' ? a.id - b.id : b.id - a.id;
     });
 
+    // 保存排序筛选后的全量数据
     setSortedAndFiltered(filtered);
+    // 计算总数
     setTotal(filtered.length);
   }, [supplies, searchParams, sorting]);
 
@@ -267,6 +295,7 @@ const Supplies: React.FC = () => {
     setDisplaySupplies(currentPageData);
   }, [sortedAndFiltered, currentPage, pageSize]);
 
+  // 表格列定义
   const columns: ColumnsType<Supply> = [
     { title: '序号', key: 'index', align: 'center', render: (_, __, index) => `${(currentPage - 1) * pageSize + index + 1}` },
     { 
@@ -274,36 +303,121 @@ const Supplies: React.FC = () => {
       dataIndex: 'supply_name', 
       key: 'supply_name', 
       align: 'center',
-      sorter: (a, b) => a.supply_name.localeCompare(b.supply_name) 
+      sorter: (a, b) => a.supply_name.localeCompare(b.supply_name),
+      render: (text: string, record: Supply) => {
+        // 检查是否过期
+        if (!record.production_date || record.validity_period_days === undefined) return text;
+        const productionDate = new Date(record.production_date);
+        if (isNaN(productionDate.getTime())) return text;
+        const validityDays = Number(record.validity_period_days);
+        if (isNaN(validityDays) || validityDays <= 0) return text;
+        const expirationDate = new Date(record.production_date);
+        expirationDate.setDate(new Date(record.production_date).getDate() + validityDays);
+        const isExpired = expirationDate < new Date();
+        
+        return (
+          <span style={{ color: isExpired ? '#ff4d4f' : 'inherit', fontWeight: isExpired ? 'bold' : 'normal' }}>
+            {text}
+          </span>
+        );
+      }
     },
     { 
       title: '存储位置', 
       dataIndex: 'storage_location', 
       key: 'storage_location', 
       align: 'center',
-      sorter: (a, b) => a.storage_location.localeCompare(b.storage_location) 
+      sorter: (a, b) => a.storage_location.localeCompare(b.storage_location),
+      render: (text: string, record: Supply) => {
+        // 检查是否过期
+        if (!record.production_date || record.validity_period_days === undefined) return text;
+        const productionDate = new Date(record.production_date);
+        if (isNaN(productionDate.getTime())) return text;
+        const validityDays = Number(record.validity_period_days);
+        if (isNaN(validityDays) || validityDays <= 0) return text;
+        const expirationDate = new Date(record.production_date);
+        expirationDate.setDate(expirationDate.getDate() + validityDays);
+        const isExpired = expirationDate < new Date();
+        
+        return (
+          <span style={{ color: isExpired ? '#ff4d4f' : 'inherit', fontWeight: isExpired ? 'bold' : 'normal' }}>
+            {text}
+          </span>
+        );
+      }
     },
     { 
       title: '生产日期', 
       dataIndex: 'production_date', 
       key: 'production_date', 
-      render: (date: string | null) => date ? new Date(date).toLocaleDateString() : '-', 
+      render: (date: string | null, record: Supply) => {
+        const displayDate = date ? new Date(date).toLocaleDateString() : '-';
+        // 检查是否过期
+        if (!record.production_date || record.validity_period_days === undefined) return displayDate;
+        const productionDate = new Date(record.production_date);
+        if (isNaN(productionDate.getTime())) return displayDate;
+        const validityDays = Number(record.validity_period_days);
+        if (isNaN(validityDays) || validityDays <= 0) return displayDate;
+        const expirationDate = new Date(productionDate);
+        expirationDate.setDate(productionDate.getDate() + validityDays);
+        const isExpired = expirationDate < new Date();
+        
+        return (
+          <span style={{ color: isExpired ? '#ff4d4f' : 'inherit', fontWeight: isExpired ? 'bold' : 'normal' }}>
+            {displayDate}
+          </span>
+        );
+      }, 
       align: 'center',
       sorter: (a, b) => new Date(a.production_date).getTime() - new Date(b.production_date).getTime() 
     },
     { 
-      title: '库存数量', 
+      title: '编号', 
       dataIndex: 'supply_number', 
       key: 'supply_number', 
       align: 'center',
-      sorter: (a, b) => a.supply_number - b.supply_number 
+      sorter: (a, b) => a.supply_number - b.supply_number,
+      render: (text: number, record: Supply) => {
+        // 检查是否过期
+        if (!record.production_date || record.validity_period_days === undefined) return text;
+        const productionDate = new Date(record.production_date);
+        if (isNaN(productionDate.getTime())) return text;
+        const validityDays = Number(record.validity_period_days);
+        if (isNaN(validityDays) || validityDays <= 0) return text;
+        const expirationDate = new Date(record.production_date);
+        expirationDate.setDate(expirationDate.getDate() + validityDays);
+        const isExpired = expirationDate < new Date();
+        
+        return (
+          <span style={{ color: isExpired ? '#ff4d4f' : 'inherit', fontWeight: isExpired ? 'bold' : 'normal' }}>
+            {text}
+          </span>
+        );
+      }
     },
     { 
       title: '有效期(天)', 
       dataIndex: 'validity_period_days', 
       key: 'validity_period_days', 
       align: 'center',
-      sorter: (a, b) => a.validity_period_days - b.validity_period_days 
+      sorter: (a, b) => a.validity_period_days - b.validity_period_days,
+      render: (text: number, record: Supply) => {
+        // 检查是否过期
+        if (!record.production_date || record.validity_period_days === undefined) return text;
+        const productionDate = new Date(record.production_date);
+        if (isNaN(productionDate.getTime())) return text;
+        const validityDays = Number(record.validity_period_days);
+        if (isNaN(validityDays) || validityDays <= 0) return text;
+        const expirationDate = new Date(record.production_date);
+        expirationDate.setDate(expirationDate.getDate() + validityDays);
+        const isExpired = expirationDate < new Date();
+        
+        return (
+          <span style={{ color: isExpired ? '#ff4d4f' : 'inherit', fontWeight: isExpired ? 'bold' : 'normal' }}>
+            {text}
+          </span>
+        );
+      }
     },
     { 
       title: '过期时间', 
@@ -316,15 +430,21 @@ const Supplies: React.FC = () => {
         if (isNaN(validityDays) || validityDays <= 0) return '无效天数';
         const expirationDate = new Date(productionDate);
         expirationDate.setDate(productionDate.getDate() + validityDays);
-        return expirationDate.toLocaleDateString();
+        const isExpired = expirationDate < new Date();
+        
+        return (
+          <span style={{ color: isExpired ? '#ff4d4f' : 'inherit', fontWeight: isExpired ? 'bold' : 'normal' }}>
+            {expirationDate.toLocaleDateString()}
+          </span>
+        );
       }, 
       align: 'center',
       sorter: (a, b) => {
-        const getExpirationTimestamp = (sup: Supply) => {
-          if (!sup.production_date || sup.validity_period_days === undefined) return 0;
-          const productionDate = new Date(sup.production_date);
+        const getExpirationTimestamp = (supply: Supply) => {
+          if (!supply.production_date || supply.validity_period_days === undefined) return 0;
+          const productionDate = new Date(supply.production_date);
           if (isNaN(productionDate.getTime())) return 0;
-          const validityDays = Number(sup.validity_period_days);
+          const validityDays = Number(supply.validity_period_days);
           if (isNaN(validityDays) || validityDays <= 0) return 0;
           const expirationDate = new Date(productionDate);
           expirationDate.setDate(productionDate.getDate() + validityDays);
@@ -467,31 +587,43 @@ const Supplies: React.FC = () => {
                 label="有效期(天)"
                 rules={[
                   { required: true, message: '请输入有效期天数' },
-                  { type: 'number', min: 1, message: '有效期天数必须大于0' }
+                  { 
+                    validator: (_, value) => {
+                      if (value && (isNaN(Number(value)) || Number(value) <= 0)) {
+                        return Promise.reject(new Error('有效期天数必须大于0'));
+                      }
+                      return Promise.resolve();
+                    }
+                  }
                 ]}
               >
                 <Input 
                   type="number" 
-                  placeholder="请输入有效期天数"
-                  min={1}
+                  min="1" 
+                  placeholder="请输入有效期天数" 
                 />
               </Form.Item>
             </Col>
-          </Row>
-          <Row gutter={16}>
             <Col span={12}>
               <Form.Item
                 name="supply_number"
-                label="库存数量"
+                label="编号"
                 rules={[
-                  { required: true, message: '请输入库存数量' },
-                  { type: 'number', min: 0, message: '库存数量不能小于0' }
+                  { required: true, message: '请输入编号' },
+                  { 
+                    validator: (_, value) => {
+                      if (value && (isNaN(Number(value)) || Number(value) < 0)) {
+                        return Promise.reject(new Error('编号不能小于0'));
+                      }
+                      return Promise.resolve();
+                    }
+                  }
                 ]}
               >
                 <Input 
                   type="number" 
-                  placeholder="请输入库存数量"
-                  min={0}
+                  min="0" 
+                  placeholder="请输入编号" 
                 />
               </Form.Item>
             </Col>

@@ -38,6 +38,7 @@ const MainLayout: React.FC<{ systemName: string }> = ({ systemName }) => {
   // 模拟用户数据 - 实际应用中应从认证系统获取
   interface User {
     username: string;
+    name: string;
     role: string;
   }
 
@@ -89,7 +90,7 @@ const MainLayout: React.FC<{ systemName: string }> = ({ systemName }) => {
     normal: 'https://gw.alipayobjects.com/zos/rmsportal/cnrhVkzwxjPwAaCfPbdc.png'   // 普通用户头像
   };
 
-  const username = loading ? '加载中...' : user?.username || '未登录';
+  const displayName = loading ? '加载中...' : (user?.name || user?.username || '未登录');
   // 将中文角色转换为头像类型键名
   const userType = user?.role === 'admin' ? 'admin' : 'normal';
 
@@ -133,8 +134,8 @@ const MainLayout: React.FC<{ systemName: string }> = ({ systemName }) => {
             placement="bottomRight"
           >
             <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-              <Avatar src={defaultAvatars[userType as keyof typeof defaultAvatars]} alt={username} style={{ marginRight: 8 }} />
-              <span>{username}</span>
+              <Avatar src={defaultAvatars[userType as keyof typeof defaultAvatars]} alt={displayName} style={{ marginRight: 8 }} />
+              <span>{displayName}</span>
             </div>
           </Dropdown>
         </AntLayout.Header>

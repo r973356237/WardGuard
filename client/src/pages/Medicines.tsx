@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Form, Input, Button, Spin, Space, Modal, Select, Popconfirm, Row, Col, message, DatePicker } from 'antd';
+import { Card, Table, Form, Input, Button, Spin, Space, Modal, Popconfirm, Row, Col, message, DatePicker } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import apiClient from '../config/axios';
@@ -209,6 +209,26 @@ const Medicines: React.FC = () => {
 
     // 应用排序（确保默认排序始终存在）
     filtered.sort((a, b) => {
+      // 首先按过期状态排序，过期的排在前面
+      const getExpirationStatus = (medicine: Medicine) => {
+        if (!medicine.production_date || medicine.validity_period_days === undefined) return false;
+        const productionDate = new Date(medicine.production_date);
+        if (isNaN(productionDate.getTime())) return false;
+        const validityDays = Number(medicine.validity_period_days);
+        if (isNaN(validityDays) || validityDays <= 0) return false;
+        const expirationDate = new Date(productionDate);
+        expirationDate.setDate(productionDate.getDate() + validityDays);
+        return expirationDate < new Date();
+      };
+      
+      const aExpired = getExpirationStatus(a);
+      const bExpired = getExpirationStatus(b);
+      
+      // 过期的药品排在前面
+      if (aExpired && !bExpired) return -1;
+      if (!aExpired && bExpired) return 1;
+      
+      // 如果过期状态相同，则按指定字段排序
       const field = sorting.field as keyof Medicine;
       if (field === 'medicine_name' || field === 'storage_location') {
         const valueA = a[field] as string;
@@ -263,20 +283,71 @@ const Medicines: React.FC = () => {
       dataIndex: 'medicine_name', 
       key: 'medicine_name', 
       align: 'center',
-      sorter: (a, b) => a.medicine_name.localeCompare(b.medicine_name) 
+      sorter: (a, b) => a.medicine_name.localeCompare(b.medicine_name),
+      render: (text: string, record: Medicine) => {
+        // 检查是否过期
+        if (!record.production_date || record.validity_period_days === undefined) return text;
+        const productionDate = new Date(record.production_date);
+        if (isNaN(productionDate.getTime())) return text;
+        const validityDays = Number(record.validity_period_days);
+        if (isNaN(validityDays) || validityDays <= 0) return text;
+        const expirationDate = new Date(productionDate);
+        expirationDate.setDate(productionDate.getDate() + validityDays);
+        const isExpired = expirationDate < new Date();
+        
+        return (
+          <span style={{ color: isExpired ? '#ff4d4f' : 'inherit', fontWeight: isExpired ? 'bold' : 'normal' }}>
+            {text}
+          </span>
+        );
+      }
     },
     { 
       title: '存储位置', 
       dataIndex: 'storage_location', 
       key: 'storage_location', 
       align: 'center',
-      sorter: (a, b) => a.storage_location.localeCompare(b.storage_location) 
+      sorter: (a, b) => a.storage_location.localeCompare(b.storage_location),
+      render: (text: string, record: Medicine) => {
+        // 检查是否过期
+        if (!record.production_date || record.validity_period_days === undefined) return text;
+        const productionDate = new Date(record.production_date);
+        if (isNaN(productionDate.getTime())) return text;
+        const validityDays = Number(record.validity_period_days);
+        if (isNaN(validityDays) || validityDays <= 0) return text;
+        const expirationDate = new Date(productionDate);
+        expirationDate.setDate(productionDate.getDate() + validityDays);
+        const isExpired = expirationDate < new Date();
+        
+        return (
+          <span style={{ color: isExpired ? '#ff4d4f' : 'inherit', fontWeight: isExpired ? 'bold' : 'normal' }}>
+            {text}
+          </span>
+        );
+      }
     },
     { 
       title: '生产日期', 
       dataIndex: 'production_date', 
       key: 'production_date', 
-      render: (date: string | null) => date ? new Date(date).toLocaleDateString() : '-', 
+      render: (date: string | null, record: Medicine) => {
+        const displayDate = date ? new Date(date).toLocaleDateString() : '-';
+        // 检查是否过期
+        if (!record.production_date || record.validity_period_days === undefined) return displayDate;
+        const productionDate = new Date(record.production_date);
+        if (isNaN(productionDate.getTime())) return displayDate;
+        const validityDays = Number(record.validity_period_days);
+        if (isNaN(validityDays) || validityDays <= 0) return displayDate;
+        const expirationDate = new Date(productionDate);
+        expirationDate.setDate(productionDate.getDate() + validityDays);
+        const isExpired = expirationDate < new Date();
+        
+        return (
+          <span style={{ color: isExpired ? '#ff4d4f' : 'inherit', fontWeight: isExpired ? 'bold' : 'normal' }}>
+            {displayDate}
+          </span>
+        );
+      }, 
       align: 'center',
       sorter: (a, b) => new Date(a.production_date).getTime() - new Date(b.production_date).getTime() 
     },
@@ -285,14 +356,48 @@ const Medicines: React.FC = () => {
       dataIndex: 'quantity', 
       key: 'quantity', 
       align: 'center',
-      sorter: (a, b) => a.quantity - b.quantity 
+      sorter: (a, b) => a.quantity - b.quantity,
+      render: (text: number, record: Medicine) => {
+        // 检查是否过期
+        if (!record.production_date || record.validity_period_days === undefined) return text;
+        const productionDate = new Date(record.production_date);
+        if (isNaN(productionDate.getTime())) return text;
+        const validityDays = Number(record.validity_period_days);
+        if (isNaN(validityDays) || validityDays <= 0) return text;
+        const expirationDate = new Date(productionDate);
+        expirationDate.setDate(productionDate.getDate() + validityDays);
+        const isExpired = expirationDate < new Date();
+        
+        return (
+          <span style={{ color: isExpired ? '#ff4d4f' : 'inherit', fontWeight: isExpired ? 'bold' : 'normal' }}>
+            {text}
+          </span>
+        );
+      }
     },
     { 
       title: '有效期(天)', 
       dataIndex: 'validity_period_days', 
       key: 'validity_period_days', 
       align: 'center',
-      sorter: (a, b) => a.validity_period_days - b.validity_period_days 
+      sorter: (a, b) => a.validity_period_days - b.validity_period_days,
+      render: (text: number, record: Medicine) => {
+        // 检查是否过期
+        if (!record.production_date || record.validity_period_days === undefined) return text;
+        const productionDate = new Date(record.production_date);
+        if (isNaN(productionDate.getTime())) return text;
+        const validityDays = Number(record.validity_period_days);
+        if (isNaN(validityDays) || validityDays <= 0) return text;
+        const expirationDate = new Date(productionDate);
+        expirationDate.setDate(productionDate.getDate() + validityDays);
+        const isExpired = expirationDate < new Date();
+        
+        return (
+          <span style={{ color: isExpired ? '#ff4d4f' : 'inherit', fontWeight: isExpired ? 'bold' : 'normal' }}>
+            {text}
+          </span>
+        );
+      }
     },
     { 
       title: '过期时间', 
@@ -305,7 +410,13 @@ const Medicines: React.FC = () => {
         if (isNaN(validityDays) || validityDays <= 0) return '无效天数';
         const expirationDate = new Date(productionDate);
         expirationDate.setDate(productionDate.getDate() + validityDays);
-        return expirationDate.toLocaleDateString();
+        const isExpired = expirationDate < new Date();
+        
+        return (
+          <span style={{ color: isExpired ? '#ff4d4f' : 'inherit', fontWeight: isExpired ? 'bold' : 'normal' }}>
+            {expirationDate.toLocaleDateString()}
+          </span>
+        );
       }, 
       align: 'center',
       sorter: (a, b) => {

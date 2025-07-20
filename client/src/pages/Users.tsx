@@ -8,6 +8,7 @@ import { API_ENDPOINTS } from '../config/api';
 type User = {
   id: number;
   username: string;
+  name: string;
   role: string;
   status: string;
   email?: string;
@@ -116,6 +117,7 @@ const Users: React.FC = () => {
 
   const columns: ColumnsType<User> = [
     { title: '用户名', dataIndex: 'username', key: 'username', align: 'center' },
+    { title: '姓名', dataIndex: 'name', key: 'name', align: 'center' },
     { title: '邮箱', dataIndex: 'email', key: 'email', align: 'center' },
     { 
       title: '角色', 
@@ -225,6 +227,21 @@ const Users: React.FC = () => {
             </Col>
             <Col span={12}>
               <Form.Item
+                label="姓名"
+                name="name"
+                rules={[
+                  { required: true, message: '请输入姓名' },
+                  { max: 50, message: '姓名最多50个字符' }
+                ]}
+              >
+                <Input placeholder="请输入姓名" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
                 label="邮箱"
                 name="email"
                 rules={[
@@ -234,6 +251,8 @@ const Users: React.FC = () => {
               >
                 <Input placeholder="邮箱将自动生成" />
               </Form.Item>
+            </Col>
+            <Col span={12}>
             </Col>
           </Row>
 
