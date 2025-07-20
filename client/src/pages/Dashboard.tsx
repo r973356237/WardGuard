@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Spin, message, Statistic, Progress, Badge } from 'antd';
+import { Card, Row, Col, Spin, message, Statistic, Progress, Badge, Button } from 'antd';
 import { 
   WarningOutlined, 
   CheckCircleOutlined, 
   UserOutlined, 
   TeamOutlined, 
-  MedicineBoxOutlined 
+  MedicineBoxOutlined,
+  ReloadOutlined
 } from '@ant-design/icons';
 import apiClient from '../config/axios';
 import type { ProgressProps } from 'antd';
@@ -42,90 +43,172 @@ const Dashboard: React.FC = () => {
     rates: { medicineExpireRate: 0, supplyExpireRate: 0 },
   });
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>('');
+  const [retryCount, setRetryCount] = useState<number>(0);
+
+  // 延迟函数
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  // 单个API请求的重试函数
+  const fetchWithRetry = async (endpoint: string, maxRetries = 3): Promise<any> => {
+    for (let i = 0; i <= maxRetries; i++) {
+      try {
+        const response = await apiClient.get(endpoint);
+        return response;
+      } catch (error) {
+        console.warn(`API请求失败 (${endpoint}), 重试 ${i + 1}/${maxRetries + 1}:`, error);
+        
+        if (i === maxRetries) {
+          throw error;
+        }
+        
+        // 指数退避：等待时间逐渐增加
+        await delay(Math.pow(2, i) * 1000);
+      }
+    }
+  };
+
+  const fetchDashboardData = async (isRetry = false) => {
+    try {
+      setLoading(true);
+      setError('');
+
+      if (isRetry) {
+        setRetryCount(prev => prev + 1);
+        // 重试时等待一下，确保后端服务稳定
+        await delay(1000);
+      }
+
+      // 使用重试机制获取各模块数据
+      const requests = [
+        fetchWithRetry(API_ENDPOINTS.USERS),
+        fetchWithRetry(API_ENDPOINTS.EMPLOYEES),
+        fetchWithRetry(API_ENDPOINTS.MEDICINES),
+        fetchWithRetry(API_ENDPOINTS.MEDICAL_EXAMINATIONS),
+        fetchWithRetry(API_ENDPOINTS.SUPPLIES)
+      ];
+
+      const [
+        userRes,
+        employeeRes,
+        medicineRes,
+        examinationRes,
+        supplyRes
+      ] = await Promise.allSettled(requests);
+
+      // 处理请求结果，即使部分失败也能显示可用数据
+      const userData = userRes.status === 'fulfilled' ? userRes.value.data?.data || [] : [];
+      const employeeData = employeeRes.status === 'fulfilled' ? employeeRes.value.data?.data || [] : [];
+      const medicines = medicineRes.status === 'fulfilled' ? medicineRes.value.data?.data || [] : [];
+      const examinationData = examinationRes.status === 'fulfilled' ? examinationRes.value.data?.data || [] : [];
+      const supplies = supplyRes.status === 'fulfilled' ? supplyRes.value.data?.data || [] : [];
+
+      // 检查是否有失败的请求
+      const failedRequests = [userRes, employeeRes, medicineRes, examinationRes, supplyRes]
+        .filter(result => result.status === 'rejected');
+
+      if (failedRequests.length > 0) {
+        console.warn(`${failedRequests.length} 个API请求失败，但继续显示可用数据`);
+      }
+
+      // 处理药品过期数据
+      const expiredMedicines = medicines.filter((m: { expiration_date: string; production_date: string; validity_period_days: number }) => {
+        let expirationDate;
+        if (m.expiration_date) {
+          expirationDate = new Date(m.expiration_date);
+        } else if (m.production_date && m.validity_period_days) {
+          const productionDate = new Date(m.production_date);
+          expirationDate = new Date(productionDate.getTime() + m.validity_period_days * 24 * 60 * 60 * 1000);
+        } else {
+          return false;
+        }
+        return expirationDate < new Date();
+      });
+      const medicineExpireRate = medicines.length > 0 ? (expiredMedicines.length / medicines.length) * 100 : 0;
+
+      // 处理物资过期数据
+      const expiredSupplies = supplies.filter((s: { expiration_date: string; production_date: string; validity_period_days: number }) => {
+        let expirationDate;
+        if (s.expiration_date) {
+          expirationDate = new Date(s.expiration_date);
+        } else if (s.production_date && s.validity_period_days) {
+          const productionDate = new Date(s.production_date);
+          expirationDate = new Date(productionDate.getTime() + s.validity_period_days * 24 * 60 * 60 * 1000);
+        } else {
+          return false;
+        }
+        return expirationDate < new Date();
+      });
+      const supplyExpireRate = supplies.length > 0 ? (expiredSupplies.length / supplies.length) * 100 : 0;
+
+      // 整合仪表盘数据
+      setDashboardData({
+        modules: [
+          { name: '用户', value: userData.length },
+          { name: '员工', value: employeeData.length },
+          { name: '药品', value: medicines.length },
+          { name: '体检记录', value: examinationData.length },
+          { name: '物资', value: supplies.length },
+        ],
+        alerts: {
+          expiredMedicines: expiredMedicines.length,
+          expiredSupplies: expiredSupplies.length
+        },
+        rates: {
+          medicineExpireRate,
+          supplyExpireRate
+        },
+      });
+
+      // 如果有部分请求失败，显示警告而不是错误
+      if (failedRequests.length > 0) {
+        message.warning(`部分数据加载失败，显示可用数据。失败请求数：${failedRequests.length}`);
+      }
+      // 移除成功提示：数据加载成功时不显示任何提示
+
+    } catch (error) {
+      console.error('获取仪表盘数据失败:', error);
+      setError('获取仪表盘数据失败，请检查网络连接或稍后重试');
+      message.error('获取仪表盘数据失败');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
+    // 初次加载时稍微延迟，确保后端服务完全启动
+    const timer = setTimeout(() => {
+      fetchDashboardData();
+    }, 500);
 
-        // 获取各模块数据并指定响应类型
-        const [
-          userRes,
-          employeeRes,
-          medicineRes,
-          examinationRes,
-          supplyRes
-        ] = await Promise.all([
-          apiClient.get<{ success: boolean; data: any[] }>(API_ENDPOINTS.USERS),
-          apiClient.get<{ success: boolean; data: any[] }>(API_ENDPOINTS.EMPLOYEES),
-          apiClient.get<{ success: boolean; data: any[] }>(API_ENDPOINTS.MEDICINES),
-          apiClient.get<{ success: boolean; data: any[] }>(API_ENDPOINTS.MEDICAL_EXAMINATIONS),
-          apiClient.get<{ success: boolean; data: any[] }>(API_ENDPOINTS.SUPPLIES)
-        ]);
-
-        // 处理药品过期数据
-        const medicines = medicineRes.data?.data || [];
-        const expiredMedicines = medicines.filter((m: { expiration_date: string; production_date: string; validity_period_days: number }) => {
-          let expirationDate;
-          if (m.expiration_date) {
-            expirationDate = new Date(m.expiration_date);
-          } else if (m.production_date && m.validity_period_days) {
-            const productionDate = new Date(m.production_date);
-            expirationDate = new Date(productionDate.getTime() + m.validity_period_days * 24 * 60 * 60 * 1000);
-          } else {
-            return false;
-          }
-          return expirationDate < new Date();
-        });
-        const medicineExpireRate = medicines.length > 0 ? (expiredMedicines.length / medicines.length) * 100 : 0;
-
-        // 处理物资过期数据
-        const supplies = supplyRes.data?.data || [];
-        const expiredSupplies = supplies.filter((s: { expiration_date: string; production_date: string; validity_period_days: number }) => {
-          let expirationDate;
-          if (s.expiration_date) {
-            expirationDate = new Date(s.expiration_date);
-          } else if (s.production_date && s.validity_period_days) {
-            const productionDate = new Date(s.production_date);
-            expirationDate = new Date(productionDate.getTime() + s.validity_period_days * 24 * 60 * 60 * 1000);
-          } else {
-            return false;
-          }
-          return expirationDate < new Date();
-        });
-        const supplyExpireRate = supplies.length > 0 ? (expiredSupplies.length / supplies.length) * 100 : 0;
-
-        // 整合仪表盘数据
-        setDashboardData({
-          modules: [
-            { name: '用户', value: userRes.data?.data.length || 0 },
-            { name: '员工', value: employeeRes.data?.data.length || 0 },
-            { name: '药品', value: medicines.length },
-            { name: '体检记录', value: examinationRes.data?.data.length || 0 },
-            { name: '物资', value: supplies.length },
-          ],
-          alerts: {
-            expiredMedicines: expiredMedicines.length,
-            expiredSupplies: expiredSupplies.length // 物资过期数量
-          },
-          rates: {
-            medicineExpireRate,
-            supplyExpireRate // 物资过期比例
-          },
-        });
-      } catch (error) {
-        message.error('获取仪表盘数据失败');
-        console.error('Error fetching dashboard data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
+    return () => clearTimeout(timer);
   }, []);
 
+  // 手动重试函数
+  const handleRetry = () => {
+    fetchDashboardData(true);
+  };
+
   return (
-    <div >
+    <div>
+      {/* 错误提示和重试按钮 */}
+      {error && (
+        <Card style={{ marginBottom: 16, borderColor: '#ff4d4f' }}>
+          <div style={{ textAlign: 'center' }}>
+            <WarningOutlined style={{ color: '#ff4d4f', fontSize: 24, marginBottom: 8 }} />
+            <div style={{ marginBottom: 16 }}>{error}</div>
+            <Button 
+              type="primary" 
+              icon={<ReloadOutlined />} 
+              onClick={handleRetry}
+              loading={loading}
+            >
+              重新加载 {retryCount > 0 && `(已重试 ${retryCount} 次)`}
+            </Button>
+          </div>
+        </Card>
+      )}
+
       {/* 左右布局结构 */}
       <Row gutter={[16, 16]}>
         {/* 左侧：倒班日历 */}

@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const config = require('./config');
-const { initializeDB } = require('./db');
+const { initializeDB, healthCheck } = require('./db');
 
 // 打印当前配置信息
 config.printConfig();
@@ -14,6 +14,26 @@ const PORT = process.env.PORT || 3000;
 // 中间件配置
 app.use(cors(config.getCorsConfig()));
 app.use(express.json());
+
+// 健康检查端点（在数据库初始化之前就可用）
+app.get('/health', async (req, res) => {
+  try {
+    const dbHealth = await healthCheck();
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      database: dbHealth,
+      uptime: process.uptime()
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'error',
+      timestamp: new Date().toISOString(),
+      database: { status: 'unhealthy', message: error.message },
+      uptime: process.uptime()
+    });
+  }
+});
 
 // 生产环境下托管前端静态文件
 if (config.isProduction()) {
@@ -75,20 +95,67 @@ if (config.isProduction()) {
   });
 }
 
-// 初始化数据库连接并启动服务器
+// 全局错误处理中间件
+app.use((error, req, res, next) => {
+  console.error('全局错误处理:', error);
+  res.status(500).json({
+    success: false,
+    message: '服务器内部错误',
+    error: process.env.NODE_ENV === 'development' ? error.message : '服务器错误'
+  });
+});
+
+// 优化的服务器启动函数，确保数据库完全初始化后再启动HTTP服务
 async function startServer() {
   try {
+    console.log('🚀 正在启动科室管理系统服务器...');
+    
+    // 第一步：初始化数据库连接
+    console.log('📊 步骤 1/3: 初始化数据库连接...');
     await initializeDB();
-    console.log('数据库连接初始化完成');
+    console.log('✅ 数据库连接初始化完成');
+    
+    // 第二步：等待一段时间确保数据库完全稳定
+    console.log('⏳ 步骤 2/3: 等待数据库稳定...');
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    console.log('✅ 数据库连接稳定');
+    
+    // 第三步：启动HTTP服务器
+    console.log('🌐 步骤 3/3: 启动HTTP服务器...');
+    const server = app.listen(PORT, () => {
+      console.log('✅ 科室管理系统服务器启动成功!');
+      console.log(`🔗 服务器地址: http://localhost:${PORT}`);
+      console.log(`📊 健康检查: http://localhost:${PORT}/health`);
+      console.log(`🎯 API端点: http://localhost:${PORT}/api`);
+      console.log('🎉 系统已准备就绪，可以接受请求');
+    });
+
+    // 优雅关闭处理
+    const gracefulShutdown = (signal) => {
+      console.log(`\n📡 收到 ${signal} 信号，正在优雅关闭服务器...`);
+      server.close(() => {
+        console.log('✅ HTTP服务器已关闭');
+        process.exit(0);
+      });
+    };
+
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+    return server;
   } catch (error) {
-    console.error('数据库连接初始化失败:', error);
-    console.warn('继续启动服务器，但数据库功能将不可用');
+    console.error('❌ 服务器启动失败:', error);
+    console.error('💡 请检查以下项目:');
+    console.error('   1. MySQL服务是否正在运行');
+    console.error('   2. 数据库配置是否正确');
+    console.error('   3. 网络连接是否正常');
+    console.error('   4. 端口是否被占用');
+    process.exit(1);
   }
-  
-  // 无论数据库连接是否成功，都启动服务器
-  app.listen(PORT, () => {
-    console.log(`服务器已启动，运行在 http://localhost:${PORT}`);
-  });
 }
 
-startServer();
+// 启动服务器
+startServer().catch(error => {
+  console.error('❌ 启动过程中发生未处理的错误:', error);
+  process.exit(1);
+});
