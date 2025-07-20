@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Space, Form, Input, Spin, DatePicker } from 'antd';
+import { Card, Table, Form, Input, Button, Spin, Space, Modal, Select, Popconfirm, Row, Col, message, DatePicker } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import type { ColumnsType } from 'antd/es/table';
+import apiClient from '../config/axios';
 import moment from 'moment';
-import axios from 'axios';
-import { message } from 'antd';
-import { ColumnsType } from 'antd/es/table';
+import { API_ENDPOINTS } from '../config/api';
 
 interface Supply {
   id: number;
@@ -15,6 +16,12 @@ interface Supply {
   expiration_date: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface ApiResponse {
+  success: boolean;
+  data: Supply[];
+  total: number;
 }
 
 const Supplies: React.FC = () => {
@@ -37,6 +44,13 @@ const Supplies: React.FC = () => {
     field: 'id',
     order: 'ascend' as 'ascend' | 'descend' | null 
   });
+  
+  // 模态框状态
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [modalType, setModalType] = useState<'add' | 'edit'>('add');
+  const [editingSupply, setEditingSupply] = useState<Supply | null>(null);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [modalForm] = Form.useForm();
 
   const handleTableChange = (pagination: any, filters: any, sorter: any) => {
     if (sorter.field || sorter.order) {
@@ -50,23 +64,25 @@ const Supplies: React.FC = () => {
     setPageSize(pagination.pageSize);
   };
 
-  useEffect(() => {
-    const fetchSupplies = async () => {
-      try {
-        setLoading(true);
-        const token = localStorage.getItem('token');
-        const response = await axios.get('/api/supplies', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+  // 获取物资数据
+  const fetchSupplies = async () => {
+    setLoading(true);
+    try {
+      const response = await apiClient.get<ApiResponse>(API_ENDPOINTS.SUPPLIES);
+      if (response.data.success) {
         setSupplies(response.data.data);
-      } catch (error) {
-        message.error('获取物资列表失败');
-        console.error('Error fetching supplies:', error);
-      } finally {
-        setLoading(false);
+      } else {
+        message.error('获取物资数据失败');
       }
-    };
+    } catch (error) {
+      console.error('Error fetching supplies:', error);
+      message.error('获取物资数据失败');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchSupplies();
   }, []);
 
@@ -78,11 +94,95 @@ const Supplies: React.FC = () => {
   };
 
   const handleExpiredSupplies = () => {
-    setSearchParams(prev => ({
-      ...prev,
-      expiration_end: moment().format('YYYY-MM-DD')
-    }));
+    const now = new Date();
+    const expiredSupplies = supplies.filter(supply => {
+      if (!supply.production_date || supply.validity_period_days === undefined) return false;
+      const productionDate = new Date(supply.production_date);
+      if (isNaN(productionDate.getTime())) return false;
+      const validityDays = Number(supply.validity_period_days);
+      if (isNaN(validityDays) || validityDays <= 0) return false;
+      const expirationDate = new Date(productionDate);
+      expirationDate.setDate(productionDate.getDate() + validityDays);
+      return expirationDate < now;
+    });
+    setSortedAndFiltered(expiredSupplies);
+    setTotal(expiredSupplies.length);
     setCurrentPage(1);
+  };
+
+  // 添加物资
+  const handleAddSupply = () => {
+    setModalType('add');
+    setEditingSupply(null);
+    modalForm.resetFields();
+    setIsModalVisible(true);
+  };
+
+  // 编辑物资
+  const handleEditSupply = (supply: Supply) => {
+    setModalType('edit');
+    setEditingSupply(supply);
+    modalForm.setFieldsValue({
+      ...supply,
+      production_date: supply.production_date ? moment(supply.production_date) : null,
+    });
+    setIsModalVisible(true);
+  };
+
+  // 删除物资
+  const handleDeleteSupply = async (id: number) => {
+    try {
+      const response = await apiClient.delete(`${API_ENDPOINTS.SUPPLIES}/${id}`);
+      if (response.data.success) {
+        message.success('删除成功');
+        fetchSupplies();
+      } else {
+        message.error('删除失败');
+      }
+    } catch (error) {
+      console.error('Error deleting supply:', error);
+      message.error('删除失败');
+    }
+  };
+
+  // 提交表单
+  const handleSubmit = async () => {
+    try {
+      const values = await modalForm.validateFields();
+      setSubmitLoading(true);
+
+      // 格式化日期
+      const formattedValues = {
+        ...values,
+        production_date: values.production_date ? values.production_date.format('YYYY-MM-DD') : null,
+      };
+
+      let response;
+      if (modalType === 'add') {
+        response = await apiClient.post(API_ENDPOINTS.SUPPLIES, formattedValues);
+      } else {
+        response = await apiClient.put(`${API_ENDPOINTS.SUPPLIES}/${editingSupply?.id}`, formattedValues);
+      }
+
+      if (response.data.success) {
+        message.success(modalType === 'add' ? '添加成功' : '更新成功');
+        setIsModalVisible(false);
+        fetchSupplies();
+      } else {
+        message.error(modalType === 'add' ? '添加失败' : '更新失败');
+      }
+    } catch (error) {
+      console.error('Error submitting supply:', error);
+      message.error(modalType === 'add' ? '添加失败' : '更新失败');
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
+  // 取消模态框
+  const handleCancel = () => {
+    setIsModalVisible(false);
+    modalForm.resetFields();
   };
 
   const handleSearch = (values: typeof searchParams) => {
@@ -236,10 +336,30 @@ const Supplies: React.FC = () => {
     { 
       title: '操作', 
       key: 'action', 
-      render: () => (
+      render: (_, record: Supply) => (
         <Space size="middle">
-          <Button type="primary" size="small">编辑</Button>
-          <Button danger size="small">删除</Button>
+          <Button 
+            type="primary" 
+            size="small" 
+            icon={<EditOutlined />}
+            onClick={() => handleEditSupply(record)}
+          >
+            编辑
+          </Button>
+          <Popconfirm
+            title="确定要删除这个物资吗？"
+            onConfirm={() => handleDeleteSupply(record.id)}
+            okText="确定"
+            cancelText="取消"
+          >
+            <Button 
+              danger 
+              size="small"
+              icon={<DeleteOutlined />}
+            >
+              删除
+            </Button>
+          </Popconfirm>
         </Space>
       ),
       align: 'center'
@@ -247,7 +367,7 @@ const Supplies: React.FC = () => {
   ];
 
   return (
-    <Card title={`符合条件的物资数量：${total}`} extra={<Button type="primary">添加物资</Button>}>
+    <Card title={`符合条件的物资数量：${total}`} extra={<Button type="primary" icon={<PlusOutlined />} onClick={handleAddSupply}>添加物资</Button>}>
       <Form<typeof searchParams> form={form} onValuesChange={handleSearch} layout="inline" style={{ marginBottom: 16, display: 'flex', alignItems: 'flex-end', gap: 16, width: '100%', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 4, flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
           <Form.Item name="supply_name" label="物资名称" >
@@ -292,6 +412,92 @@ const Supplies: React.FC = () => {
           }} 
         />
       </Spin>
+
+      {/* 添加/编辑物资模态框 */}
+      <Modal
+        title={modalType === 'add' ? '添加物资' : '编辑物资'}
+        open={isModalVisible}
+        onOk={handleSubmit}
+        onCancel={handleCancel}
+        confirmLoading={submitLoading}
+        width={600}
+      >
+        <Form
+          form={modalForm}
+          layout="vertical"
+          style={{ marginTop: 16 }}
+        >
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="supply_name"
+                label="物资名称"
+                rules={[{ required: true, message: '请输入物资名称' }]}
+              >
+                <Input placeholder="请输入物资名称" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="storage_location"
+                label="存储位置"
+                rules={[{ required: true, message: '请输入存储位置' }]}
+              >
+                <Input placeholder="请输入存储位置" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="production_date"
+                label="生产日期"
+                rules={[{ required: true, message: '请选择生产日期' }]}
+              >
+                <DatePicker 
+                  format="YYYY-MM-DD" 
+                  style={{ width: '100%' }}
+                  placeholder="请选择生产日期"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="validity_period_days"
+                label="有效期(天)"
+                rules={[
+                  { required: true, message: '请输入有效期天数' },
+                  { type: 'number', min: 1, message: '有效期天数必须大于0' }
+                ]}
+              >
+                <Input 
+                  type="number" 
+                  placeholder="请输入有效期天数"
+                  min={1}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="supply_number"
+                label="库存数量"
+                rules={[
+                  { required: true, message: '请输入库存数量' },
+                  { type: 'number', min: 0, message: '库存数量不能小于0' }
+                ]}
+              >
+                <Input 
+                  type="number" 
+                  placeholder="请输入库存数量"
+                  min={0}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
     </Card>
   );
 };

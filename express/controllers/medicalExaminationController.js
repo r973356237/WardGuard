@@ -53,34 +53,72 @@ exports.getMedicalExaminationsByEmployeeNumber = async (req, res) => {
 exports.addMedicalExamination = async (req, res) => {
   console.log('收到添加体检信息请求:', req.body);
   try {
-    const { employee_number, examination_date, audiometry_result, dust_examination_result, need_recheck, recheck_date, audiometry_recheck_result, dust_recheck_result } = req.body;
+    const { employee_number, employee_name, examination_date, audiometry_result, dust_examination_result, need_recheck, recheck_date, audiometry_recheck_result, dust_recheck_result } = req.body;
     const pool = await getPool();
 
     // 验证请求参数
-    if (!employee_number || !examination_date || !audiometry_result || !dust_examination_result) {
+    if (!examination_date || !audiometry_result || !dust_examination_result) {
       console.log('体检信息参数不完整:', req.body);
-      return res.status(400).json({ success: false, message: '工号、体检日期、电测听结果和粉尘结果为必填项' });
+      return res.status(400).json({ success: false, message: '体检日期、电测听结果和粉尘结果为必填项' });
     }
 
-    // 检查人员是否存在
-    const [employees] = await pool.execute('SELECT * FROM employees WHERE employee_number = ?', [employee_number]);
-    if (employees.length === 0) {
-      console.log('人员不存在，工号:', employee_number);
-      return res.status(404).json({ success: false, message: '人员不存在' });
+    // 如果没有工号但有员工姓名，则通过姓名查询工号
+    if (!employee_number && !employee_name) {
+      console.log('工号和员工姓名都为空:', req.body);
+      return res.status(400).json({ success: false, message: '工号或员工姓名至少需要提供一个' });
+    }
+
+    let finalEmployeeNumber = employee_number;
+    let finalEmployeeName = employee_name;
+
+    // 如果提供了员工姓名但没有工号，通过姓名查询工号
+    if (!employee_number && employee_name) {
+      const [employeesByName] = await pool.execute('SELECT employee_number, name FROM employees WHERE name = ?', [employee_name]);
+      if (employeesByName.length === 0) {
+        console.log('根据姓名未找到员工:', employee_name);
+        return res.status(404).json({ success: false, message: '未找到该员工，请检查员工姓名是否正确' });
+      }
+      if (employeesByName.length > 1) {
+        console.log('找到多个同名员工:', employee_name);
+        return res.status(400).json({ success: false, message: '存在多个同名员工，请提供工号以确保准确性' });
+      }
+      finalEmployeeNumber = employeesByName[0].employee_number;
+      finalEmployeeName = employeesByName[0].name;
+      console.log('通过姓名查询到工号:', employee_name, '->', finalEmployeeNumber);
+    }
+
+    // 如果提供了工号，验证工号是否存在并获取员工姓名
+    if (finalEmployeeNumber) {
+      const [employees] = await pool.execute('SELECT employee_number, name FROM employees WHERE employee_number = ?', [finalEmployeeNumber]);
+      if (employees.length === 0) {
+        console.log('人员不存在，工号:', finalEmployeeNumber);
+        return res.status(404).json({ success: false, message: '人员不存在' });
+      }
+      finalEmployeeName = employees[0].name;
     }
 
     // 插入新体检信息
     const [result] = await pool.execute(
       'INSERT INTO medical_examinations (employee_number, examination_date, audiometry_result, dust_examination_result, need_recheck, recheck_date, audiometry_recheck_result, dust_recheck_result) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [employee_number, examination_date, audiometry_result, dust_examination_result, need_recheck || 0, recheck_date || null, audiometry_recheck_result || null, dust_recheck_result || null]
+      [finalEmployeeNumber, examination_date, audiometry_result, dust_examination_result, need_recheck || 0, recheck_date || null, audiometry_recheck_result || null, dust_recheck_result || null]
     );
 
-    console.log('添加体检信息成功，ID:', result.insertId);
-    const [[employee]] = await pool.execute('SELECT name FROM employees WHERE employee_number = ?', [employee_number]);
+    console.log('添加体检信息成功，ID:', result.insertId, '工号:', finalEmployeeNumber, '姓名:', finalEmployeeName);
     res.status(201).json({
       success: true,
       message: '体检信息添加成功',
-      data: { id: result.insertId, employee_number, employee_name: employee ? employee.name : null, examination_date, audiometry_result, dust_examination_result, need_recheck, recheck_date, audiometry_recheck_result, dust_recheck_result }
+      data: { 
+        id: result.insertId, 
+        employee_number: finalEmployeeNumber, 
+        employee_name: finalEmployeeName, 
+        examination_date, 
+        audiometry_result, 
+        dust_examination_result, 
+        need_recheck, 
+        recheck_date, 
+        audiometry_recheck_result, 
+        dust_recheck_result 
+      }
     });
   } catch (err) {
     console.error('添加体检信息错误:', err);
@@ -95,26 +133,54 @@ exports.updateMedicalExamination = async (req, res) => {
   console.log('收到更新体检信息请求:', req.params.id, req.body);
   try {
     const { id } = req.params;
-    const { employee_number, examination_date, audiometry_result, dust_examination_result, need_recheck, recheck_date, audiometry_recheck_result, dust_recheck_result } = req.body;
+    const { employee_number, employee_name, examination_date, audiometry_result, dust_examination_result, need_recheck, recheck_date, audiometry_recheck_result, dust_recheck_result } = req.body;
     const pool = await getPool();
 
     // 验证请求参数
-    if (!employee_number || !examination_date || !audiometry_result || !dust_examination_result) {
+    if (!examination_date || !audiometry_result || !dust_examination_result) {
       console.log('体检信息参数不完整:', req.body);
-      return res.status(400).json({ success: false, message: '工号、体检日期、电测听结果和粉尘结果为必填项' });
+      return res.status(400).json({ success: false, message: '体检日期、电测听结果和粉尘结果为必填项' });
     }
 
-    // 检查人员是否存在
-    const [employees] = await pool.execute('SELECT * FROM employees WHERE employee_number = ?', [employee_number]);
-    if (employees.length === 0) {
-      console.log('人员不存在，工号:', employee_number);
-      return res.status(404).json({ success: false, message: '人员不存在' });
+    // 如果没有工号但有员工姓名，则通过姓名查询工号
+    if (!employee_number && !employee_name) {
+      console.log('工号和员工姓名都为空:', req.body);
+      return res.status(400).json({ success: false, message: '工号或员工姓名至少需要提供一个' });
+    }
+
+    let finalEmployeeNumber = employee_number;
+    let finalEmployeeName = employee_name;
+
+    // 如果提供了员工姓名但没有工号，通过姓名查询工号
+    if (!employee_number && employee_name) {
+      const [employeesByName] = await pool.execute('SELECT employee_number, name FROM employees WHERE name = ?', [employee_name]);
+      if (employeesByName.length === 0) {
+        console.log('根据姓名未找到员工:', employee_name);
+        return res.status(404).json({ success: false, message: '未找到该员工，请检查员工姓名是否正确' });
+      }
+      if (employeesByName.length > 1) {
+        console.log('找到多个同名员工:', employee_name);
+        return res.status(400).json({ success: false, message: '存在多个同名员工，请提供工号以确保准确性' });
+      }
+      finalEmployeeNumber = employeesByName[0].employee_number;
+      finalEmployeeName = employeesByName[0].name;
+      console.log('通过姓名查询到工号:', employee_name, '->', finalEmployeeNumber);
+    }
+
+    // 如果提供了工号，验证工号是否存在并获取员工姓名
+    if (finalEmployeeNumber) {
+      const [employees] = await pool.execute('SELECT employee_number, name FROM employees WHERE employee_number = ?', [finalEmployeeNumber]);
+      if (employees.length === 0) {
+        console.log('人员不存在，工号:', finalEmployeeNumber);
+        return res.status(404).json({ success: false, message: '人员不存在' });
+      }
+      finalEmployeeName = employees[0].name;
     }
 
     // 更新体检信息
     const [result] = await pool.execute(
       'UPDATE medical_examinations SET employee_number = ?, examination_date = ?, audiometry_result = ?, dust_examination_result = ?, need_recheck = ?, recheck_date = ?, audiometry_recheck_result = ?, dust_recheck_result = ? WHERE id = ?',
-      [employee_number, examination_date, audiometry_result, dust_examination_result, need_recheck || 0, recheck_date || null, audiometry_recheck_result || null, dust_recheck_result || null, id]
+      [finalEmployeeNumber, examination_date, audiometry_result, dust_examination_result, need_recheck || 0, recheck_date || null, audiometry_recheck_result || null, dust_recheck_result || null, id]
     );
 
     if (result.affectedRows === 0) {
@@ -122,12 +188,22 @@ exports.updateMedicalExamination = async (req, res) => {
       return res.status(404).json({ success: false, message: '体检信息不存在' });
     }
 
-    console.log('更新体检信息成功，ID:', id);
-    const [[employee]] = await pool.execute('SELECT name FROM employees WHERE employee_number = ?', [employee_number]);
+    console.log('更新体检信息成功，ID:', id, '工号:', finalEmployeeNumber, '姓名:', finalEmployeeName);
     res.json({
       success: true,
       message: '体检信息更新成功',
-      data: { id, employee_number, employee_name: employee ? employee.name : null, examination_date, audiometry_result, dust_examination_result, need_recheck, recheck_date, audiometry_recheck_result, dust_recheck_result }
+      data: { 
+        id, 
+        employee_number: finalEmployeeNumber, 
+        employee_name: finalEmployeeName, 
+        examination_date, 
+        audiometry_result, 
+        dust_examination_result, 
+        need_recheck, 
+        recheck_date, 
+        audiometry_recheck_result, 
+        dust_recheck_result 
+      }
     });
   } catch (err) {
     console.error('更新体检信息错误:', err);
@@ -160,4 +236,4 @@ exports.deleteMedicalExamination = async (req, res) => {
     console.error('删除体检信息错误:', err);
     res.status(500).json({ success: false, message: '服务器错误', error: err.message });
   }
-};    
+};

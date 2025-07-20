@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Space, Form, Input, DatePicker, message } from 'antd';
-import { ColumnsType } from 'antd/es/table';
-import axios from 'axios';
+import { Card, Table, Form, Input, DatePicker, Button, Spin, Space, Modal, Select, Popconfirm, Row, Col, message } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
+import type { ColumnsType } from 'antd/es/table';
+import apiClient from '../config/axios';
 import moment from 'moment';
+import { API_ENDPOINTS } from '../config/api';
 
 interface MedicalExamination {
   id: number;
@@ -39,6 +41,13 @@ const MedicalExaminations: React.FC = () => {
     userInitiated: false // 标记是否为用户主动排序
   });
 
+  // 模态框状态
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [modalType, setModalType] = useState<'add' | 'edit' | 'view'>('add');
+  const [editingExamination, setEditingExamination] = useState<MedicalExamination | null>(null);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [modalForm] = Form.useForm();
+
   // 处理表格排序、分页变化
   const handleTableChange = (pagination: any, filters: any, sorter: any) => {
     if (sorter.field || sorter.order) {
@@ -53,24 +62,26 @@ const MedicalExaminations: React.FC = () => {
     setPageSize(pagination.pageSize);
   };
 
+  // 获取体检记录数据
+  const fetchExaminations = async () => {
+    try {
+      setLoading(true);
+      const response = await apiClient.get(API_ENDPOINTS.MEDICAL_EXAMINATIONS);
+      if (response.data.success) {
+        setExaminations(response.data.data);
+      } else {
+        message.error('获取体检记录失败');
+      }
+    } catch (error) {
+      message.error('获取体检记录失败');
+      console.error('Error fetching examinations:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // 初始化加载体检记录
   useEffect(() => {
-    const fetchExaminations = async () => {
-      try {
-        setLoading(true);
-        const token = localStorage.getItem('token');
-        const response = await axios.get('/api/medical-examinations', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setExaminations(response.data.data);
-      } catch (error) {
-        message.error('获取体检记录失败');
-        console.error('Error fetching examinations:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchExaminations();
   }, []);
 
@@ -97,6 +108,95 @@ const MedicalExaminations: React.FC = () => {
   const handleFilterAbnormalRecords = () => {
     setSearchParams(prev => ({ ...prev, need_recheck: 1 }));
     setCurrentPage(1);
+  };
+
+  // 添加体检记录
+  const handleAddExamination = () => {
+    setModalType('add');
+    setEditingExamination(null);
+    modalForm.resetFields();
+    setIsModalVisible(true);
+  };
+
+  // 编辑体检记录
+  const handleEditExamination = (examination: MedicalExamination) => {
+    setModalType('edit');
+    setEditingExamination(examination);
+    modalForm.setFieldsValue({
+      ...examination,
+      examination_date: examination.examination_date ? moment(examination.examination_date) : null,
+      recheck_date: examination.recheck_date ? moment(examination.recheck_date) : null,
+    });
+    setIsModalVisible(true);
+  };
+
+  // 查看体检记录详情
+  const handleViewExamination = (examination: MedicalExamination) => {
+    setModalType('view');
+    setEditingExamination(examination);
+    modalForm.setFieldsValue({
+      ...examination,
+      examination_date: examination.examination_date ? moment(examination.examination_date) : null,
+      recheck_date: examination.recheck_date ? moment(examination.recheck_date) : null,
+    });
+    setIsModalVisible(true);
+  };
+
+  // 删除体检记录
+  const handleDeleteExamination = async (id: number) => {
+    try {
+      const response = await apiClient.delete(`${API_ENDPOINTS.MEDICAL_EXAMINATIONS}/${id}`);
+      if (response.data.success) {
+        message.success('删除成功');
+        fetchExaminations();
+      } else {
+        message.error('删除失败');
+      }
+    } catch (error) {
+      console.error('Error deleting examination:', error);
+      message.error('删除失败');
+    }
+  };
+
+  // 提交表单
+  const handleSubmit = async () => {
+    try {
+      const values = await modalForm.validateFields();
+      setSubmitLoading(true);
+
+      // 格式化日期
+      const formattedValues = {
+        ...values,
+        examination_date: values.examination_date ? values.examination_date.format('YYYY-MM-DD') : null,
+        recheck_date: values.recheck_date ? values.recheck_date.format('YYYY-MM-DD') : null,
+      };
+
+      let response;
+      if (modalType === 'add') {
+        response = await apiClient.post(API_ENDPOINTS.MEDICAL_EXAMINATIONS, formattedValues);
+      } else if (modalType === 'edit') {
+        response = await apiClient.put(`${API_ENDPOINTS.MEDICAL_EXAMINATIONS}/${editingExamination?.id}`, formattedValues);
+      }
+
+      if (response && response.data.success) {
+        message.success(modalType === 'add' ? '添加成功' : '更新成功');
+        setIsModalVisible(false);
+        fetchExaminations();
+      } else {
+        message.error(modalType === 'add' ? '添加失败' : '更新失败');
+      }
+    } catch (error) {
+      console.error('Error submitting examination:', error);
+      message.error(modalType === 'add' ? '添加失败' : '更新失败');
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
+  // 取消模态框
+  const handleCancel = () => {
+    setIsModalVisible(false);
+    modalForm.resetFields();
   };
 
   // 处理筛选和排序逻辑（核心修改）
@@ -256,10 +356,38 @@ const MedicalExaminations: React.FC = () => {
       title: '操作',
       key: 'action',
       align: 'center',
-      render: () => (
+      render: (_, record: MedicalExamination) => (
         <Space size="middle">
-          <Button type="primary" size="small">查看详情</Button>
-          <Button danger size="small">删除</Button>
+          <Button 
+            type="primary" 
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => handleViewExamination(record)}
+          >
+            查看详情
+          </Button>
+          <Button 
+            type="default" 
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => handleEditExamination(record)}
+          >
+            编辑
+          </Button>
+          <Popconfirm
+            title="确定要删除这条体检记录吗？"
+            onConfirm={() => handleDeleteExamination(record.id)}
+            okText="确定"
+            cancelText="取消"
+          >
+            <Button 
+              danger 
+              size="small"
+              icon={<DeleteOutlined />}
+            >
+              删除
+            </Button>
+          </Popconfirm>
         </Space>
       )
     },
@@ -268,7 +396,7 @@ const MedicalExaminations: React.FC = () => {
   return (
     <Card 
       title={`符合条件的体检记录数量：${total}`} 
-      extra={<Button type="primary">添加体检记录</Button>}
+      extra={<Button type="primary" icon={<PlusOutlined />} onClick={handleAddExamination}>添加体检记录</Button>}
     >
       <Form<typeof searchParams> 
         form={form} 
@@ -321,6 +449,118 @@ const MedicalExaminations: React.FC = () => {
           pageSizeOptions: ['10', '20', '50'] 
         }} 
       />
+
+      {/* 添加/编辑/查看体检记录模态框 */}
+      <Modal
+        title={
+          modalType === 'add' ? '添加体检记录' : 
+          modalType === 'edit' ? '编辑体检记录' : 
+          '查看体检记录详情'
+        }
+        open={isModalVisible}
+        onOk={modalType === 'view' ? handleCancel : handleSubmit}
+        onCancel={handleCancel}
+        confirmLoading={submitLoading}
+        width={800}
+        okText={modalType === 'view' ? '关闭' : '确定'}
+        cancelText={modalType === 'view' ? undefined : '取消'}
+      >
+        <Form
+          form={modalForm}
+          layout="vertical"
+          style={{ marginTop: 16 }}
+          disabled={modalType === 'view'}
+        >
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="employee_name"
+                label="员工姓名"
+                rules={[{ required: true, message: '请输入员工姓名' }]}
+              >
+                <Input placeholder="请输入员工姓名" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="examination_date"
+                label="体检日期"
+                rules={[{ required: true, message: '请选择体检日期' }]}
+              >
+                <DatePicker 
+                  format="YYYY-MM-DD" 
+                  style={{ width: '100%' }}
+                  placeholder="请选择体检日期"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="audiometry_result"
+                label="电测听结果"
+                rules={[{ required: true, message: '请输入电测听结果' }]}
+              >
+                <Input placeholder="请输入电测听结果" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="dust_examination_result"
+                label="粉尘检查结果"
+                rules={[{ required: true, message: '请输入粉尘检查结果' }]}
+              >
+                <Input placeholder="请输入粉尘检查结果" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="need_recheck"
+                label="是否需要复查"
+                rules={[{ required: true, message: '请选择是否需要复查' }]}
+              >
+                <Select placeholder="请选择是否需要复查">
+                  <Select.Option value={0}>否</Select.Option>
+                  <Select.Option value={1}>是</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="recheck_date"
+                label="复查时间"
+              >
+                <DatePicker 
+                  format="YYYY-MM-DD" 
+                  style={{ width: '100%' }}
+                  placeholder="请选择复查时间"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="audiometry_recheck_result"
+                label="电测听复查结果"
+              >
+                <Input placeholder="请输入电测听复查结果" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="dust_recheck_result"
+                label="粉尘复查结果"
+              >
+                <Input placeholder="请输入粉尘复查结果" />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
     </Card>
   );
 };

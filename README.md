@@ -437,9 +437,4 @@ CORS_ORIGIN=https://your-domain.com
 - 💡 **功能建议**：[GitHub Discussions](https://github.com/your-repo/WardGuard/discussions)
 - 📖 **文档问题**：欢迎提交 PR 改进文档
 
-## 致谢
-感谢所有为 WardGuard 项目做出贡献的开发者和用户！
-
----
-
 **WardGuard** - 让科室管理更简单、更高效！

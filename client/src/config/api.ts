@@ -27,6 +27,7 @@ export const API_ENDPOINTS = {
   USER_REGISTER: '/api/users/register',
   USER_ME: '/api/users/me',
   USER_LIST: '/api/users',
+  USERS: '/api/users',
   
   // 系统相关
   SYSTEM_NAME: '/api/system-name',

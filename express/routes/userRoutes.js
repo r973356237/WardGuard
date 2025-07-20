@@ -19,4 +19,16 @@ console.log('获取用户信息路由已加载');
 router.get('/', authenticate, userController.getAllUsers);
 console.log('获取所有用户路由已加载');
 
+// 创建用户（需认证）
+router.post('/', authenticate, userController.createUser);
+console.log('创建用户路由已加载');
+
+// 更新用户（需认证）
+router.put('/:id', authenticate, userController.updateUser);
+console.log('更新用户路由已加载');
+
+// 删除用户（需认证）
+router.delete('/:id', authenticate, userController.deleteUser);
+console.log('删除用户路由已加载');
+
 module.exports = router;

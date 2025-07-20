@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Spin, message, Card, Form, Input } from 'antd';
-import axios from 'axios';
-import { ColumnsType } from 'antd/es/table';
+import { Card, Table, Form, Input, Button, Spin, Space, Modal, Select, Popconfirm, Row, Col, message, DatePicker } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import type { ColumnsType } from 'antd/es/table';
+import apiClient from '../config/axios';
+import moment from 'moment';
+import { API_ENDPOINTS } from '../config/api';
 
 interface Employee {
   id: number;
@@ -48,24 +51,31 @@ const Employees: React.FC = () => {
     order: 'ascend' as 'ascend' | 'descend' | null
   });
 
+  // 模态框状态
+  const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
+  const [modalType, setModalType] = useState<'add' | 'edit'>('add');
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [submitLoading, setSubmitLoading] = useState<boolean>(false);
+
   // 初始化表单实例
   const [form] = Form.useForm();
+  const [modalForm] = Form.useForm();
 
   // 加载员工数据
-  useEffect(() => {
-    const fetchEmployees = async () => {
-      try {
-        setLoading(true);
-        const response = await axios.get<ApiResponse>('/api/employees');
-        setEmployees(response.data.data);
-      } catch (error) {
-        message.error('获取员工信息失败，请重试');
-        console.error('Error fetching employees:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchEmployees = async () => {
+    try {
+      setLoading(true);
+      const response = await apiClient.get<ApiResponse>(API_ENDPOINTS.EMPLOYEES);
+      setEmployees(response.data.data);
+    } catch (error) {
+      message.error('获取员工信息失败，请重试');
+      console.error('Error fetching employees:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchEmployees();
   }, []);
 
@@ -93,6 +103,78 @@ const Employees: React.FC = () => {
     setSearchParams({}); // 清空搜索参数
     setCurrentPage(1); // 重置到第一页
     setSorting({ field: 'id', order: 'ascend' }); // 重置排序
+  };
+
+  // 打开添加员工模态框
+  const handleAddEmployee = () => {
+    setModalType('add');
+    setEditingEmployee(null);
+    modalForm.resetFields();
+    setIsModalVisible(true);
+  };
+
+  // 打开编辑员工模态框
+  const handleEditEmployee = (employee: Employee) => {
+    setModalType('edit');
+    setEditingEmployee(employee);
+    modalForm.setFieldsValue({
+      ...employee,
+      birth_date: employee.birth_date ? moment(employee.birth_date) : null,
+      hire_date: employee.hire_date ? moment(employee.hire_date) : null,
+      work_start_date: employee.work_start_date ? moment(employee.work_start_date) : null,
+    });
+    setIsModalVisible(true);
+  };
+
+  // 删除员工
+  const handleDeleteEmployee = async (id: number) => {
+    try {
+      await apiClient.delete(`${API_ENDPOINTS.EMPLOYEES}/${id}`);
+      message.success('删除员工成功');
+      fetchEmployees(); // 重新获取数据
+    } catch (error) {
+      message.error('删除员工失败，请重试');
+      console.error('Error deleting employee:', error);
+    }
+  };
+
+  // 提交表单（添加或编辑）
+  const handleSubmit = async (values: any) => {
+    try {
+      setSubmitLoading(true);
+      
+      // 格式化日期字段
+      const formattedValues = {
+        ...values,
+        birth_date: values.birth_date ? values.birth_date.format('YYYY-MM-DD') : null,
+        hire_date: values.hire_date ? values.hire_date.format('YYYY-MM-DD') : null,
+        work_start_date: values.work_start_date ? values.work_start_date.format('YYYY-MM-DD') : null,
+      };
+
+      if (modalType === 'add') {
+        await apiClient.post(API_ENDPOINTS.EMPLOYEES, formattedValues);
+        message.success('添加员工成功');
+      } else {
+        await apiClient.put(`${API_ENDPOINTS.EMPLOYEES}/${editingEmployee?.id}`, formattedValues);
+        message.success('更新员工信息成功');
+      }
+      
+      setIsModalVisible(false);
+      modalForm.resetFields();
+      fetchEmployees(); // 重新获取数据
+    } catch (error) {
+      message.error(modalType === 'add' ? '添加员工失败，请重试' : '更新员工信息失败，请重试');
+      console.error('Error submitting employee:', error);
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
+  // 取消模态框
+  const handleCancel = () => {
+    setIsModalVisible(false);
+    modalForm.resetFields();
+    setEditingEmployee(null);
   };
 
   // 筛选和排序逻辑
@@ -270,8 +352,28 @@ const Employees: React.FC = () => {
       key: 'action', 
       render: (record: Employee) => (
         <Space size="middle">
-          <Button type="primary" size="small">编辑</Button>
-          <Button danger size="small">删除</Button>
+          <Button 
+            type="primary" 
+            size="small" 
+            icon={<EditOutlined />}
+            onClick={() => handleEditEmployee(record)}
+          >
+            编辑
+          </Button>
+          <Popconfirm
+            title="确定要删除这个员工吗？"
+            onConfirm={() => handleDeleteEmployee(record.id)}
+            okText="确定"
+            cancelText="取消"
+          >
+            <Button 
+              danger 
+              size="small" 
+              icon={<DeleteOutlined />}
+            >
+              删除
+            </Button>
+          </Popconfirm>
         </Space>
       ),
       align: 'center'
@@ -279,7 +381,18 @@ const Employees: React.FC = () => {
   ];
 
   return (
-    <Card title={`符合条件的员工： ${total} `} extra={<Button type="primary">添加员工</Button>}>
+    <Card 
+      title={`符合条件的员工： ${total} `} 
+      extra={
+        <Button 
+          type="primary" 
+          icon={<PlusOutlined />}
+          onClick={handleAddEmployee}
+        >
+          添加员工
+        </Button>
+      }
+    >
       <Form<SearchParams> 
         form={form} // 关联表单实例
         onValuesChange={handleSearch} 
@@ -332,6 +445,168 @@ const Employees: React.FC = () => {
           onChange={handleTableChange} 
         />
       </Spin>
+
+      {/* 添加/编辑员工模态框 */}
+      <Modal
+        title={modalType === 'add' ? '添加员工' : '编辑员工'}
+        open={isModalVisible}
+        onOk={() => modalForm.submit()}
+        onCancel={handleCancel}
+        confirmLoading={submitLoading}
+        width={800}
+        okText="确定"
+        cancelText="取消"
+      >
+        <Form
+          form={modalForm}
+          layout="vertical"
+          onFinish={handleSubmit}
+        >
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="name"
+                label="姓名"
+                rules={[{ required: true, message: '请输入姓名' }]}
+              >
+                <Input placeholder="请输入姓名" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="employee_number"
+                label="工号"
+                rules={[{ required: true, message: '请输入工号' }]}
+              >
+                <Input placeholder="请输入工号" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="gender"
+                label="性别"
+                rules={[{ required: true, message: '请选择性别' }]}
+              >
+                <Select placeholder="请选择性别">
+                  <Select.Option value="男">男</Select.Option>
+                  <Select.Option value="女">女</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="workshop"
+                label="车间"
+                rules={[{ required: true, message: '请输入车间' }]}
+              >
+                <Input placeholder="请输入车间" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="position"
+                label="职位"
+                rules={[{ required: true, message: '请输入职位' }]}
+              >
+                <Input placeholder="请输入职位" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="birth_date"
+                label="出生日期"
+              >
+                <DatePicker 
+                  style={{ width: '100%' }} 
+                  placeholder="请选择出生日期"
+                  format="YYYY-MM-DD"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="hire_date"
+                label="入职时间"
+              >
+                <DatePicker 
+                  style={{ width: '100%' }} 
+                  placeholder="请选择入职时间"
+                  format="YYYY-MM-DD"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="work_start_date"
+                label="参加工作时间"
+              >
+                <DatePicker 
+                  style={{ width: '100%' }} 
+                  placeholder="请选择参加工作时间"
+                  format="YYYY-MM-DD"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="original_company"
+                label="原单位"
+              >
+                <Input placeholder="请输入原单位" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="id_number"
+                label="身份证号"
+              >
+                <Input placeholder="请输入身份证号" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="total_exposure_time"
+                label="总接害时间(年)"
+              >
+                <Input 
+                  type="number" 
+                  step="0.5" 
+                  min="0" 
+                  placeholder="请输入总接害时间" 
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="pre_hire_exposure_time"
+                label="入职前接害时间(年)"
+              >
+                <Input 
+                  type="number" 
+                  step="0.5" 
+                  min="0" 
+                  placeholder="请输入入职前接害时间" 
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
     </Card>
   );
 };

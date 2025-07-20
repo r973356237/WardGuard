@@ -7,9 +7,10 @@ import {
   TeamOutlined, 
   MedicineBoxOutlined 
 } from '@ant-design/icons';
-import axios from 'axios';
+import apiClient from '../config/axios';
 import type { ProgressProps } from 'antd';
 import ShiftCalendar from '../components/ShiftCalendar';
+import { API_ENDPOINTS } from '../config/api';
 
 // 定义数据类型接口
 interface ModuleData {
@@ -46,8 +47,6 @@ const Dashboard: React.FC = () => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
-        const token = localStorage.getItem('token');
-        const headers = { Authorization: `Bearer ${token}` };
 
         // 获取各模块数据并指定响应类型
         const [
@@ -57,11 +56,11 @@ const Dashboard: React.FC = () => {
           examinationRes,
           supplyRes
         ] = await Promise.all([
-          axios.get<{ success: boolean; data: any[] }>('/api/users', { headers }),
-          axios.get<{ success: boolean; data: any[] }>('/api/employees', { headers }),
-          axios.get<{ success: boolean; data: any[] }>('/api/medicines', { headers }),
-          axios.get<{ success: boolean; data: any[] }>('/api/medical-examinations', { headers }),
-          axios.get<{ success: boolean; data: any[] }>('/api/supplies', { headers })
+          apiClient.get<{ success: boolean; data: any[] }>(API_ENDPOINTS.USERS),
+          apiClient.get<{ success: boolean; data: any[] }>(API_ENDPOINTS.EMPLOYEES),
+          apiClient.get<{ success: boolean; data: any[] }>(API_ENDPOINTS.MEDICINES),
+          apiClient.get<{ success: boolean; data: any[] }>(API_ENDPOINTS.MEDICAL_EXAMINATIONS),
+          apiClient.get<{ success: boolean; data: any[] }>(API_ENDPOINTS.SUPPLIES)
         ]);
 
         // 处理药品过期数据

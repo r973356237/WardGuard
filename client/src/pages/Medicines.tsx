@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Space, Form, Input, Spin, DatePicker } from 'antd';
+import { Card, Table, Form, Input, Button, Spin, Space, Modal, Select, Popconfirm, Row, Col, message, DatePicker } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import type { ColumnsType } from 'antd/es/table';
+import apiClient from '../config/axios';
 import moment from 'moment';
-import axios from 'axios';
-import { message } from 'antd';
-import { ColumnsType } from 'antd/es/table';
+import { API_ENDPOINTS } from '../config/api';
 
 interface Medicine {
   id: number;
@@ -39,6 +40,13 @@ const Medicines: React.FC = () => {
     order: 'ascend' as 'ascend' | 'descend' | null 
   });
 
+  // 模态框状态
+  const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
+  const [modalType, setModalType] = useState<'add' | 'edit'>('add');
+  const [editingMedicine, setEditingMedicine] = useState<Medicine | null>(null);
+  const [submitLoading, setSubmitLoading] = useState<boolean>(false);
+  const [modalForm] = Form.useForm();
+
   const handleTableChange = (pagination: any, filters: any, sorter: any) => {
     // 处理排序变化
     if (sorter.field || sorter.order) {
@@ -54,23 +62,21 @@ const Medicines: React.FC = () => {
     setPageSize(pagination.pageSize);
   };
 
-  useEffect(() => {
-    const fetchMedicines = async () => {
-      try {
-        setLoading(true);
-        const token = localStorage.getItem('token');
-        const response = await axios.get('/api/medicines', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setMedicines(response.data.data);
-      } catch (error) {
-        message.error('获取药品列表失败');
-        console.error('Error fetching medicines:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // 获取药品数据
+  const fetchMedicines = async () => {
+    try {
+      setLoading(true);
+      const response = await apiClient.get(API_ENDPOINTS.MEDICINES);
+      setMedicines(response.data.data);
+    } catch (error) {
+      message.error('获取药品列表失败');
+      console.error('Error fetching medicines:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchMedicines();
   }, []);
 
@@ -93,6 +99,74 @@ const Medicines: React.FC = () => {
   const handleSearch = (values: typeof searchParams) => {
     setSearchParams(values);
     setCurrentPage(1);
+  };
+
+  // 打开添加药品模态框
+  const handleAddMedicine = () => {
+    setModalType('add');
+    setEditingMedicine(null);
+    modalForm.resetFields();
+    setIsModalVisible(true);
+  };
+
+  // 打开编辑药品模态框
+  const handleEditMedicine = (medicine: Medicine) => {
+    setModalType('edit');
+    setEditingMedicine(medicine);
+    modalForm.setFieldsValue({
+      ...medicine,
+      production_date: medicine.production_date ? moment(medicine.production_date) : null,
+    });
+    setIsModalVisible(true);
+  };
+
+  // 删除药品
+  const handleDeleteMedicine = async (id: number) => {
+    try {
+      await apiClient.delete(`${API_ENDPOINTS.MEDICINES}/${id}`);
+      message.success('删除药品成功');
+      fetchMedicines(); // 重新获取数据
+    } catch (error) {
+      message.error('删除药品失败，请重试');
+      console.error('Error deleting medicine:', error);
+    }
+  };
+
+  // 提交表单（添加或编辑）
+  const handleSubmit = async (values: any) => {
+    try {
+      setSubmitLoading(true);
+      
+      // 格式化日期字段
+      const formattedValues = {
+        ...values,
+        production_date: values.production_date ? values.production_date.format('YYYY-MM-DD') : null,
+      };
+
+      if (modalType === 'add') {
+        await apiClient.post(API_ENDPOINTS.MEDICINES, formattedValues);
+        message.success('添加药品成功');
+      } else {
+        await apiClient.put(`${API_ENDPOINTS.MEDICINES}/${editingMedicine?.id}`, formattedValues);
+        message.success('更新药品信息成功');
+      }
+      
+      setIsModalVisible(false);
+      modalForm.resetFields();
+      fetchMedicines(); // 重新获取数据
+    } catch (error) {
+      message.error(modalType === 'add' ? '添加药品失败，请重试' : '更新药品信息失败，请重试');
+      console.error('Error submitting medicine:', error);
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
+  // 取消模态框
+  const handleCancel = () => {
+    setIsModalVisible(false);
+    modalForm.resetFields();
+    setEditingMedicine(null);
   };
 
   // 处理筛选和排序
@@ -251,10 +325,30 @@ const Medicines: React.FC = () => {
     { 
       title: '操作', 
       key: 'action', 
-      render: () => (
+      render: (record: Medicine) => (
         <Space size="middle">
-          <Button type="primary" size="small">编辑</Button>
-          <Button danger size="small">删除</Button>
+          <Button 
+            type="primary" 
+            size="small" 
+            icon={<EditOutlined />}
+            onClick={() => handleEditMedicine(record)}
+          >
+            编辑
+          </Button>
+          <Popconfirm
+            title="确定要删除这个药品吗？"
+            onConfirm={() => handleDeleteMedicine(record.id)}
+            okText="确定"
+            cancelText="取消"
+          >
+            <Button 
+              danger 
+              size="small" 
+              icon={<DeleteOutlined />}
+            >
+              删除
+            </Button>
+          </Popconfirm>
         </Space>
       ),
       align: 'center'
@@ -262,7 +356,18 @@ const Medicines: React.FC = () => {
   ];
 
   return (
-    <Card title={`符合条件的药品数量：${total}`} extra={<Button type="primary">添加药品</Button>}>
+    <Card 
+      title={`符合条件的药品数量：${total}`} 
+      extra={
+        <Button 
+          type="primary" 
+          icon={<PlusOutlined />}
+          onClick={handleAddMedicine}
+        >
+          添加药品
+        </Button>
+      }
+    >
       <Form<typeof searchParams> form={form} onValuesChange={handleSearch} layout="inline" style={{ marginBottom: 16, display: 'flex', alignItems: 'flex-end', gap: 16, width: '100%', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 4, flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
           <Form.Item name="medicine_name" label="药品名称" >
@@ -307,6 +412,90 @@ const Medicines: React.FC = () => {
           }} 
         />
       </Spin>
+
+      {/* 添加/编辑药品模态框 */}
+      <Modal
+        title={modalType === 'add' ? '添加药品' : '编辑药品'}
+        open={isModalVisible}
+        onOk={() => modalForm.submit()}
+        onCancel={handleCancel}
+        confirmLoading={submitLoading}
+        width={600}
+        okText="确定"
+        cancelText="取消"
+      >
+        <Form
+          form={modalForm}
+          layout="vertical"
+          onFinish={handleSubmit}
+        >
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="medicine_name"
+                label="药品名称"
+                rules={[{ required: true, message: '请输入药品名称' }]}
+              >
+                <Input placeholder="请输入药品名称" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="storage_location"
+                label="存储位置"
+                rules={[{ required: true, message: '请输入存储位置' }]}
+              >
+                <Input placeholder="请输入存储位置" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="production_date"
+                label="生产日期"
+                rules={[{ required: true, message: '请选择生产日期' }]}
+              >
+                <DatePicker 
+                  style={{ width: '100%' }} 
+                  placeholder="请选择生产日期"
+                  format="YYYY-MM-DD"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="validity_period_days"
+                label="有效期(天)"
+                rules={[{ required: true, message: '请输入有效期天数' }]}
+              >
+                <Input 
+                  type="number" 
+                  min="1" 
+                  placeholder="请输入有效期天数" 
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={24}>
+              <Form.Item
+                name="quantity"
+                label="库存数量"
+                rules={[{ required: true, message: '请输入库存数量' }]}
+              >
+                <Input 
+                  type="number" 
+                  min="0" 
+                  placeholder="请输入库存数量" 
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
     </Card>
   );
 };
