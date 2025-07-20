@@ -47,7 +47,7 @@ app.get('/api', (req, res) => {
 
 // 将所有非API请求重定向到index.html，支持前端路由
 app.get('*', (req, res) => {
-  res.sendFile('../client/build/index.html', { root: __dirname });
+  res.sendFile('index.html', { root: '../client/build' });
 });
 
 // 初始化数据库连接并启动服务器
@@ -55,13 +55,15 @@ async function startServer() {
   try {
     await initializeDB();
     console.log('数据库连接初始化完成');
-    app.listen(PORT, () => {
-      console.log(`服务器已启动，运行在 http://localhost:${PORT}`);
-    });
   } catch (error) {
-    console.error('启动服务器失败:', error);
-    process.exit(1);
+    console.error('数据库连接初始化失败:', error);
+    console.warn('继续启动服务器，但数据库功能将不可用');
   }
+  
+  // 无论数据库连接是否成功，都启动服务器
+  app.listen(PORT, () => {
+    console.log(`服务器已启动，运行在 http://localhost:${PORT}`);
+  });
 }
 
 startServer();

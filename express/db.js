@@ -40,9 +40,9 @@ async function initializeDB() {
       console.log('Database connected successfully');
       resolve(dbPool);
     } catch (error) {
-      console.error('Database connection failed:', error.message);
-      reject(error);
-      process.exit(1); // 连接失败时终止进程
+      console.error('Database connection failed:', error.message, error.stack);
+      console.warn('继续运行，但数据库功能将不可用');
+      resolve(null); // 不终止进程，继续运行
     } finally {
       initializing = false;
       initializationPromise = null;

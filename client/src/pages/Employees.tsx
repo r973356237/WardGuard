@@ -12,6 +12,12 @@ interface Employee {
   position: string;
   hire_date: string;
   status: string;
+  birth_date: string;
+  work_start_date: string;
+  original_company: string;
+  total_exposure_time: number;
+  pre_hire_exposure_time: number;
+  id_number: string;
 }
 
 interface SearchParams {
@@ -194,6 +200,70 @@ const Employees: React.FC = () => {
       key: 'position', 
       align: 'center',
       sorter: (a, b) => a.position.localeCompare(b.position)
+    },
+    { 
+      title: '出生日期', 
+      dataIndex: 'birth_date', 
+      key: 'birth_date', 
+      align: 'center',
+      render: (date: string) => date ? new Date(date).toLocaleDateString() : '-',
+      sorter: (a, b) => new Date(a.birth_date || 0).getTime() - new Date(b.birth_date || 0).getTime()
+    },
+    { 
+      title: '入职时间', 
+      dataIndex: 'hire_date', 
+      key: 'hire_date', 
+      align: 'center',
+      render: (date: string) => date ? new Date(date).toLocaleDateString() : '-',
+      sorter: (a, b) => new Date(a.hire_date || 0).getTime() - new Date(b.hire_date || 0).getTime()
+    },
+    { 
+      title: '参加工作时间', 
+      dataIndex: 'work_start_date', 
+      key: 'work_start_date', 
+      align: 'center',
+      render: (date: string) => date ? new Date(date).toLocaleDateString() : '-',
+      sorter: (a, b) => new Date(a.work_start_date || 0).getTime() - new Date(b.work_start_date || 0).getTime()
+    },
+    { 
+      title: '原单位', 
+      dataIndex: 'original_company', 
+      key: 'original_company', 
+      align: 'center',
+      render: (text: string) => text || '-'
+    },
+    { 
+      title: '总接害时间(年)', 
+      dataIndex: 'total_exposure_time', 
+      key: 'total_exposure_time', 
+      align: 'center',
+      render: (value: number) => {
+        if (value === undefined) return '-';
+        // 将值只舍不入到0.5的倍数：不满0.5年的舍去，如1.3年显示为1年，1.7年显示为1.5年
+        const roundedValue = Math.floor(value * 2) / 2; // 使用Math.floor代替Math.round实现只舍不入
+        return roundedValue.toFixed(roundedValue % 1 === 0 ? 0 : 1);
+      },
+      sorter: (a, b) => (a.total_exposure_time || 0) - (b.total_exposure_time || 0)
+    },
+    { 
+      title: '入职前接害时间(年)', 
+      dataIndex: 'pre_hire_exposure_time', 
+      key: 'pre_hire_exposure_time', 
+      align: 'center',
+      render: (value: number) => {
+        if (value === undefined) return '-';
+        // 将值只舍不入到0.5的倍数：不满0.5年的舍去，如1.3年显示为1年，1.7年显示为1.5年
+        const roundedValue = Math.floor(value * 2) / 2; // 使用Math.floor代替Math.round实现只舍不入
+        return roundedValue.toFixed(roundedValue % 1 === 0 ? 0 : 1);
+      },
+      sorter: (a, b) => (a.pre_hire_exposure_time || 0) - (b.pre_hire_exposure_time || 0)
+    },
+    { 
+      title: '身份证号', 
+      dataIndex: 'id_number', 
+      key: 'id_number', 
+      align: 'center',
+      render: (text: string) => text || '-'
     },
     { 
       title: '操作', 
