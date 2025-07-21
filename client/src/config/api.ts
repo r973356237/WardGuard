@@ -32,6 +32,11 @@ export const API_ENDPOINTS = {
   // 系统相关
   SYSTEM_NAME: '/api/system-name',
   SYSTEM_HEALTH: '/api/health',
+  SYSTEM: '/api/system',
+  
+  // 仪表盘相关
+  DASHBOARD_STATS: '/api/dashboard/stats',
+  DASHBOARD_HEALTH: '/api/dashboard/health',
   
   // 物资相关
   SUPPLIES: '/api/supplies',

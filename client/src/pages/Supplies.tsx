@@ -372,30 +372,6 @@ const Supplies: React.FC = () => {
       sorter: (a, b) => new Date(a.production_date).getTime() - new Date(b.production_date).getTime() 
     },
     { 
-      title: '编号', 
-      dataIndex: 'supply_number', 
-      key: 'supply_number', 
-      align: 'center',
-      sorter: (a, b) => a.supply_number - b.supply_number,
-      render: (text: number, record: Supply) => {
-        // 检查是否过期
-        if (!record.production_date || record.validity_period_days === undefined) return text;
-        const productionDate = new Date(record.production_date);
-        if (isNaN(productionDate.getTime())) return text;
-        const validityDays = Number(record.validity_period_days);
-        if (isNaN(validityDays) || validityDays <= 0) return text;
-        const expirationDate = new Date(record.production_date);
-        expirationDate.setDate(expirationDate.getDate() + validityDays);
-        const isExpired = expirationDate < new Date();
-        
-        return (
-          <span style={{ color: isExpired ? '#ff4d4f' : 'inherit', fontWeight: isExpired ? 'bold' : 'normal' }}>
-            {text}
-          </span>
-        );
-      }
-    },
-    { 
       title: '有效期(天)', 
       dataIndex: 'validity_period_days', 
       key: 'validity_period_days', 
@@ -451,6 +427,30 @@ const Supplies: React.FC = () => {
           return expirationDate.getTime();
         };
         return getExpirationTimestamp(a) - getExpirationTimestamp(b);
+      }
+    },
+    { 
+      title: '编号', 
+      dataIndex: 'supply_number', 
+      key: 'supply_number', 
+      align: 'center',
+      sorter: (a, b) => a.supply_number - b.supply_number,
+      render: (text: number, record: Supply) => {
+        // 检查是否过期
+        if (!record.production_date || record.validity_period_days === undefined) return text;
+        const productionDate = new Date(record.production_date);
+        if (isNaN(productionDate.getTime())) return text;
+        const validityDays = Number(record.validity_period_days);
+        if (isNaN(validityDays) || validityDays <= 0) return text;
+        const expirationDate = new Date(record.production_date);
+        expirationDate.setDate(expirationDate.getDate() + validityDays);
+        const isExpired = expirationDate < new Date();
+        
+        return (
+          <span style={{ color: isExpired ? '#ff4d4f' : 'inherit', fontWeight: isExpired ? 'bold' : 'normal' }}>
+            {text}
+          </span>
+        );
       }
     },
     { 

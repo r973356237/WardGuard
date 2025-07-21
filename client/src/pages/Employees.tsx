@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Form, Input, Button, Spin, Space, Modal, Select, Popconfirm, Row, Col, message, DatePicker } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Card, Table, Form, Input, Button, Spin, Space, Modal, Select, Popconfirm, Row, Col, message, DatePicker, Drawer } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import apiClient from '../config/axios';
 import moment from 'moment';
@@ -56,6 +56,8 @@ const Employees: React.FC = () => {
   const [modalType, setModalType] = useState<'add' | 'edit'>('add');
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [submitLoading, setSubmitLoading] = useState<boolean>(false);
+  const [isDetailDrawerVisible, setIsDetailDrawerVisible] = useState(false);
+  const [detailEmployee, setDetailEmployee] = useState<Employee | null>(null);
 
   // 初始化表单实例
   const [form] = Form.useForm();
@@ -106,6 +108,16 @@ const Employees: React.FC = () => {
   };
 
   // 打开添加员工模态框
+  const handleViewDetail = (employee: Employee) => {
+    setDetailEmployee(employee);
+    setIsDetailDrawerVisible(true);
+  };
+
+  const handleCloseDetailDrawer = () => {
+    setIsDetailDrawerVisible(false);
+    setDetailEmployee(null);
+  };
+
   const handleAddEmployee = () => {
     setModalType('add');
     setEditingEmployee(null);
@@ -300,21 +312,6 @@ const Employees: React.FC = () => {
       sorter: (a, b) => new Date(a.hire_date || 0).getTime() - new Date(b.hire_date || 0).getTime()
     },
     { 
-      title: '参加工作时间', 
-      dataIndex: 'work_start_date', 
-      key: 'work_start_date', 
-      align: 'center',
-      render: (date: string) => date ? new Date(date).toLocaleDateString() : '-',
-      sorter: (a, b) => new Date(a.work_start_date || 0).getTime() - new Date(b.work_start_date || 0).getTime()
-    },
-    { 
-      title: '原单位', 
-      dataIndex: 'original_company', 
-      key: 'original_company', 
-      align: 'center',
-      render: (text: string) => text || '-'
-    },
-    { 
       title: '总接害时间(年)', 
       dataIndex: 'total_exposure_time', 
       key: 'total_exposure_time', 
@@ -328,30 +325,18 @@ const Employees: React.FC = () => {
       sorter: (a, b) => (a.total_exposure_time || 0) - (b.total_exposure_time || 0)
     },
     { 
-      title: '入职前接害时间(年)', 
-      dataIndex: 'pre_hire_exposure_time', 
-      key: 'pre_hire_exposure_time', 
-      align: 'center',
-      render: (value: number) => {
-        if (value === undefined) return '-';
-        // 将值只舍不入到0.5的倍数：不满0.5年的舍去，如1.3年显示为1年，1.7年显示为1.5年
-        const roundedValue = Math.floor(value * 2) / 2; // 使用Math.floor代替Math.round实现只舍不入
-        return roundedValue.toFixed(roundedValue % 1 === 0 ? 0 : 1);
-      },
-      sorter: (a, b) => (a.pre_hire_exposure_time || 0) - (b.pre_hire_exposure_time || 0)
-    },
-    { 
-      title: '身份证号', 
-      dataIndex: 'id_number', 
-      key: 'id_number', 
-      align: 'center',
-      render: (text: string) => text || '-'
-    },
-    { 
       title: '操作', 
       key: 'action', 
       render: (record: Employee) => (
         <Space size="middle">
+          <Button 
+            type="default" 
+            size="small" 
+            icon={<EyeOutlined />}
+            onClick={() => handleViewDetail(record)}
+          >
+            查看详细
+          </Button>
           <Button 
             type="primary" 
             size="small" 
@@ -607,6 +592,110 @@ const Employees: React.FC = () => {
           </Row>
         </Form>
       </Modal>
+
+      {/* 员工详细信息抽屉 */}
+      <Drawer
+        title="员工详细信息"
+        placement="right"
+        onClose={handleCloseDetailDrawer}
+        open={isDetailDrawerVisible}
+        width={600}
+      >
+        {detailEmployee && (
+          <div style={{ padding: '16px 0' }}>
+            <Row gutter={[16, 16]}>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>姓名：</strong>
+                  <span>{detailEmployee.name}</span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>工号：</strong>
+                  <span>{detailEmployee.employee_number}</span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>性别：</strong>
+                  <span>{detailEmployee.gender}</span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>车间：</strong>
+                  <span>{detailEmployee.workshop}</span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>职位：</strong>
+                  <span>{detailEmployee.position}</span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>出生日期：</strong>
+                  <span>{detailEmployee.birth_date ? new Date(detailEmployee.birth_date).toLocaleDateString() : '-'}</span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>入职时间：</strong>
+                  <span>{detailEmployee.hire_date ? new Date(detailEmployee.hire_date).toLocaleDateString() : '-'}</span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>参加工作时间：</strong>
+                  <span>{detailEmployee.work_start_date ? new Date(detailEmployee.work_start_date).toLocaleDateString() : '-'}</span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>原单位：</strong>
+                  <span>{detailEmployee.original_company || '-'}</span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>总接害时间(年)：</strong>
+                  <span>
+                    {detailEmployee.total_exposure_time !== undefined 
+                      ? (() => {
+                          const roundedValue = Math.floor(detailEmployee.total_exposure_time * 2) / 2;
+                          return roundedValue.toFixed(roundedValue % 1 === 0 ? 0 : 1);
+                        })()
+                      : '-'
+                    }
+                  </span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>入职前接害时间(年)：</strong>
+                  <span>
+                    {detailEmployee.pre_hire_exposure_time !== undefined 
+                      ? (() => {
+                          const roundedValue = Math.floor(detailEmployee.pre_hire_exposure_time * 2) / 2;
+                          return roundedValue.toFixed(roundedValue % 1 === 0 ? 0 : 1);
+                        })()
+                      : '-'
+                    }
+                  </span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>身份证号：</strong>
+                  <span>{detailEmployee.id_number || '-'}</span>
+                </div>
+              </Col>
+            </Row>
+          </div>
+        )}
+      </Drawer>
     </Card>
   );
 };

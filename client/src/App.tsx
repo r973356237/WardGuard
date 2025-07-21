@@ -122,7 +122,6 @@ const MainLayout: React.FC<{ systemName: string }> = ({ systemName }) => {
           <Dropdown
             overlay={(
               <Menu>
-                <Menu.Item key="profile">个人信息</Menu.Item>
                 <Menu.Item key="logout" onClick={() => {
                   localStorage.removeItem('token');
                   window.location.href = '/login';

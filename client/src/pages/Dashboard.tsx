@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, Row, Col, Spin, message, Statistic, Progress, Badge, Button } from 'antd';
 import { 
   WarningOutlined, 
@@ -12,6 +12,28 @@ import apiClient from '../config/axios';
 import type { ProgressProps } from 'antd';
 import ShiftCalendar from '../components/ShiftCalendar';
 import { API_ENDPOINTS } from '../config/api';
+
+// 延迟函数
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// 单个API请求的重试函数
+const fetchWithRetry = async (endpoint: string, maxRetries = 3): Promise<any> => {
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      const response = await apiClient.get(endpoint);
+      return response;
+    } catch (error) {
+      console.warn(`API请求失败 (${endpoint}), 重试 ${i + 1}/${maxRetries + 1}:`, error);
+      
+      if (i === maxRetries) {
+        throw error;
+      }
+      
+      // 指数退避：等待时间逐渐增加
+      await delay(Math.pow(2, i) * 1000);
+    }
+  }
+};
 
 // 定义数据类型接口
 interface ModuleData {
@@ -46,29 +68,7 @@ const Dashboard: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [retryCount, setRetryCount] = useState<number>(0);
 
-  // 延迟函数
-  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-  // 单个API请求的重试函数
-  const fetchWithRetry = async (endpoint: string, maxRetries = 3): Promise<any> => {
-    for (let i = 0; i <= maxRetries; i++) {
-      try {
-        const response = await apiClient.get(endpoint);
-        return response;
-      } catch (error) {
-        console.warn(`API请求失败 (${endpoint}), 重试 ${i + 1}/${maxRetries + 1}:`, error);
-        
-        if (i === maxRetries) {
-          throw error;
-        }
-        
-        // 指数退避：等待时间逐渐增加
-        await delay(Math.pow(2, i) * 1000);
-      }
-    }
-  };
-
-  const fetchDashboardData = async (isRetry = false) => {
+  const fetchDashboardData = useCallback(async (isRetry = false) => {
     try {
       setLoading(true);
       setError('');
@@ -79,92 +79,21 @@ const Dashboard: React.FC = () => {
         await delay(1000);
       }
 
-      // 使用重试机制获取各模块数据
-      const requests = [
-        fetchWithRetry(API_ENDPOINTS.USERS),
-        fetchWithRetry(API_ENDPOINTS.EMPLOYEES),
-        fetchWithRetry(API_ENDPOINTS.MEDICINES),
-        fetchWithRetry(API_ENDPOINTS.MEDICAL_EXAMINATIONS),
-        fetchWithRetry(API_ENDPOINTS.SUPPLIES)
-      ];
-
-      const [
-        userRes,
-        employeeRes,
-        medicineRes,
-        examinationRes,
-        supplyRes
-      ] = await Promise.allSettled(requests);
-
-      // 处理请求结果，即使部分失败也能显示可用数据
-      const userData = userRes.status === 'fulfilled' ? userRes.value.data?.data || [] : [];
-      const employeeData = employeeRes.status === 'fulfilled' ? employeeRes.value.data?.data || [] : [];
-      const medicines = medicineRes.status === 'fulfilled' ? medicineRes.value.data?.data || [] : [];
-      const examinationData = examinationRes.status === 'fulfilled' ? examinationRes.value.data?.data || [] : [];
-      const supplies = supplyRes.status === 'fulfilled' ? supplyRes.value.data?.data || [] : [];
-
-      // 检查是否有失败的请求
-      const failedRequests = [userRes, employeeRes, medicineRes, examinationRes, supplyRes]
-        .filter(result => result.status === 'rejected');
-
-      if (failedRequests.length > 0) {
-        console.warn(`${failedRequests.length} 个API请求失败，但继续显示可用数据`);
+      // 使用新的仪表盘统计API，只需要一个请求
+      console.log('正在获取仪表盘统计数据...');
+      const response = await fetchWithRetry(API_ENDPOINTS.DASHBOARD_STATS, 3);
+      
+      if (response.data?.success && response.data?.data) {
+        const dashboardStats = response.data.data;
+        console.log('仪表盘统计数据获取成功:', dashboardStats);
+        
+        // 直接使用后端返回的统计数据
+        setDashboardData(dashboardStats);
+        
+        // 数据加载成功时不显示任何提示
+      } else {
+        throw new Error('仪表盘数据格式错误');
       }
-
-      // 处理药品过期数据
-      const expiredMedicines = medicines.filter((m: { expiration_date: string; production_date: string; validity_period_days: number }) => {
-        let expirationDate;
-        if (m.expiration_date) {
-          expirationDate = new Date(m.expiration_date);
-        } else if (m.production_date && m.validity_period_days) {
-          const productionDate = new Date(m.production_date);
-          expirationDate = new Date(productionDate.getTime() + m.validity_period_days * 24 * 60 * 60 * 1000);
-        } else {
-          return false;
-        }
-        return expirationDate < new Date();
-      });
-      const medicineExpireRate = medicines.length > 0 ? (expiredMedicines.length / medicines.length) * 100 : 0;
-
-      // 处理物资过期数据
-      const expiredSupplies = supplies.filter((s: { expiration_date: string; production_date: string; validity_period_days: number }) => {
-        let expirationDate;
-        if (s.expiration_date) {
-          expirationDate = new Date(s.expiration_date);
-        } else if (s.production_date && s.validity_period_days) {
-          const productionDate = new Date(s.production_date);
-          expirationDate = new Date(productionDate.getTime() + s.validity_period_days * 24 * 60 * 60 * 1000);
-        } else {
-          return false;
-        }
-        return expirationDate < new Date();
-      });
-      const supplyExpireRate = supplies.length > 0 ? (expiredSupplies.length / supplies.length) * 100 : 0;
-
-      // 整合仪表盘数据
-      setDashboardData({
-        modules: [
-          { name: '用户', value: userData.length },
-          { name: '员工', value: employeeData.length },
-          { name: '药品', value: medicines.length },
-          { name: '体检记录', value: examinationData.length },
-          { name: '物资', value: supplies.length },
-        ],
-        alerts: {
-          expiredMedicines: expiredMedicines.length,
-          expiredSupplies: expiredSupplies.length
-        },
-        rates: {
-          medicineExpireRate,
-          supplyExpireRate
-        },
-      });
-
-      // 如果有部分请求失败，显示警告而不是错误
-      if (failedRequests.length > 0) {
-        message.warning(`部分数据加载失败，显示可用数据。失败请求数：${failedRequests.length}`);
-      }
-      // 移除成功提示：数据加载成功时不显示任何提示
 
     } catch (error) {
       console.error('获取仪表盘数据失败:', error);
@@ -173,7 +102,7 @@ const Dashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     // 初次加载时稍微延迟，确保后端服务完全启动
@@ -182,7 +111,7 @@ const Dashboard: React.FC = () => {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [fetchDashboardData]);
 
   // 手动重试函数
   const handleRetry = () => {

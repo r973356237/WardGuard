@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>仪表盘API性能测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #f6ffed;
+            border: 1px solid #b7eb8f;
+            color: #52c41a;
+        }
+        .error {
+            background-color: #fff2f0;
+            border: 1px solid #ffccc7;
+            color: #ff4d4f;
+        }
+        .info {
+            background-color: #f0f9ff;
+            border: 1px solid #91d5ff;
+            color: #1890ff;
+        }
+        button {
+            background-color: #1890ff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #40a9ff;
+        }
+        button:disabled {
+            background-color: #d9d9d9;
+            cursor: not-allowed;
+        }
+        .timing {
+            font-weight: bold;
+            color: #722ed1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>仪表盘API性能测试</h1>
+        <p>此页面用于测试新的仪表盘统计API与原有多个API请求的性能对比</p>
+        
+        <div class="test-section">
+            <h3>1. 登录测试</h3>
+            <input type="text" id="username" placeholder="用户名" value="admin">
+            <input type="password" id="password" placeholder="密码" value="admin123">
+            <button onclick="testLogin()">登录</button>
+            <div id="loginResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>2. 新的仪表盘统计API测试</h3>
+            <button onclick="testNewDashboardAPI()" id="newApiBtn" disabled>测试新API (单个请求)</button>
+            <div id="newApiResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>3. 原有多个API请求测试</h3>
+            <button onclick="testOldDashboardAPI()" id="oldApiBtn" disabled>测试原有API (5个请求)</button>
+            <div id="oldApiResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>4. 性能对比</h3>
+            <button onclick="performanceComparison()" id="compareBtn" disabled>执行性能对比测试</button>
+            <div id="comparisonResult"></div>
+        </div>
+    </div>
+
+    <script>
+        let authToken = '';
+        const API_BASE = 'http://localhost:3000';
+
+        async function testLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const resultDiv = document.getElementById('loginResult');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/users/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.data.token) {
+                    authToken = data.data.token;
+                    resultDiv.innerHTML = `<div class="result success">登录成功！用户: ${data.data.user.name}</div>`;
+                    
+                    // 启用其他测试按钮
+                    document.getElementById('newApiBtn').disabled = false;
+                    document.getElementById('oldApiBtn').disabled = false;
+                    document.getElementById('compareBtn').disabled = false;
+                } else {
+                    resultDiv.innerHTML = `<div class="result error">登录失败: ${data.message}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result error">登录错误: ${error.message}</div>`;
+            }
+        }
+
+        async function testNewDashboardAPI() {
+            const resultDiv = document.getElementById('newApiResult');
+            resultDiv.innerHTML = '<div class="result info">正在测试新的仪表盘API...</div>';
+            
+            const startTime = performance.now();
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/dashboard/stats`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const endTime = performance.now();
+                const duration = endTime - startTime;
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+                            <div>✅ 新API测试成功！</div>
+                            <div class="timing">⏱️ 响应时间: ${duration.toFixed(2)}ms</div>
+                            <div>📊 数据: ${JSON.stringify(data.data, null, 2)}</div>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="result error">新API测试失败: ${data.message}</div>`;
+                }
+            } catch (error) {
+                const endTime = performance.now();
+                const duration = endTime - startTime;
+                resultDiv.innerHTML = `<div class="result error">新API错误 (${duration.toFixed(2)}ms): ${error.message}</div>`;
+            }
+        }
+
+        async function testOldDashboardAPI() {
+            const resultDiv = document.getElementById('oldApiResult');
+            resultDiv.innerHTML = '<div class="result info">正在测试原有多个API请求...</div>';
+            
+            const startTime = performance.now();
+            
+            try {
+                const endpoints = [
+                    '/api/users',
+                    '/api/employees', 
+                    '/api/medicines',
+                    '/api/medical-examinations',
+                    '/api/supplies'
+                ];
+                
+                const requests = endpoints.map(endpoint => 
+                    fetch(`${API_BASE}${endpoint}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                );
+                
+                const responses = await Promise.all(requests);
+                const endTime = performance.now();
+                const duration = endTime - startTime;
+                
+                const results = await Promise.all(responses.map(r => r.json()));
+                
+                const counts = {
+                    users: results[0].success ? results[0].data.length : 0,
+                    employees: results[1].success ? results[1].data.length : 0,
+                    medicines: results[2].success ? results[2].data.length : 0,
+                    examinations: results[3].success ? results[3].data.length : 0,
+                    supplies: results[4].success ? results[4].data.length : 0
+                };
+                
+                resultDiv.innerHTML = `
+                    <div class="result success">
+                        <div>✅ 原有API测试成功！</div>
+                        <div class="timing">⏱️ 响应时间: ${duration.toFixed(2)}ms</div>
+                        <div>📊 统计: 用户${counts.users}, 员工${counts.employees}, 药品${counts.medicines}, 体检${counts.examinations}, 物资${counts.supplies}</div>
+                    </div>
+                `;
+            } catch (error) {
+                const endTime = performance.now();
+                const duration = endTime - startTime;
+                resultDiv.innerHTML = `<div class="result error">原有API错误 (${duration.toFixed(2)}ms): ${error.message}</div>`;
+            }
+        }
+
+        async function performanceComparison() {
+            const resultDiv = document.getElementById('comparisonResult');
+            resultDiv.innerHTML = '<div class="result info">正在执行性能对比测试...</div>';
+            
+            const testRounds = 5;
+            const newApiTimes = [];
+            const oldApiTimes = [];
+            
+            // 测试新API
+            for (let i = 0; i < testRounds; i++) {
+                const startTime = performance.now();
+                try {
+                    await fetch(`${API_BASE}/api/dashboard/stats`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    const endTime = performance.now();
+                    newApiTimes.push(endTime - startTime);
+                } catch (error) {
+                    console.error('新API测试失败:', error);
+                }
+                await new Promise(resolve => setTimeout(resolve, 100)); // 短暂延迟
+            }
+            
+            // 测试原有API
+            for (let i = 0; i < testRounds; i++) {
+                const startTime = performance.now();
+                try {
+                    const endpoints = ['/api/users', '/api/employees', '/api/medicines', '/api/medical-examinations', '/api/supplies'];
+                    const requests = endpoints.map(endpoint => 
+                        fetch(`${API_BASE}${endpoint}`, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${authToken}`,
+                                'Content-Type': 'application/json'
+                            }
+                        })
+                    );
+                    await Promise.all(requests);
+                    const endTime = performance.now();
+                    oldApiTimes.push(endTime - startTime);
+                } catch (error) {
+                    console.error('原有API测试失败:', error);
+                }
+                await new Promise(resolve => setTimeout(resolve, 100)); // 短暂延迟
+            }
+            
+            const newApiAvg = newApiTimes.reduce((a, b) => a + b, 0) / newApiTimes.length;
+            const oldApiAvg = oldApiTimes.reduce((a, b) => a + b, 0) / oldApiTimes.length;
+            const improvement = ((oldApiAvg - newApiAvg) / oldApiAvg * 100);
+            
+            resultDiv.innerHTML = `
+                <div class="result success">
+                    <h4>📈 性能对比结果 (${testRounds}轮测试)</h4>
+                    <div><strong>新API平均响应时间:</strong> <span class="timing">${newApiAvg.toFixed(2)}ms</span></div>
+                    <div><strong>原有API平均响应时间:</strong> <span class="timing">${oldApiAvg.toFixed(2)}ms</span></div>
+                    <div><strong>性能提升:</strong> <span class="timing">${improvement.toFixed(1)}%</span></div>
+                    <div><strong>时间节省:</strong> <span class="timing">${(oldApiAvg - newApiAvg).toFixed(2)}ms</span></div>
+                    <hr>
+                    <div><strong>新API详细时间:</strong> ${newApiTimes.map(t => t.toFixed(1)).join('ms, ')}ms</div>
+                    <div><strong>原有API详细时间:</strong> ${oldApiTimes.map(t => t.toFixed(1)).join('ms, ')}ms</div>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>

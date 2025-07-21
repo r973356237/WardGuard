@@ -4,10 +4,7 @@ const config = require('./config');
 // 获取数据库连接配置
 const dbConfig = {
   ...config.getDatabaseConfig(),
-  connectionLimit: 20, // 增加连接池大小
-  acquireTimeout: 60000, // 获取连接超时时间
-  timeout: 60000, // 查询超时时间
-  reconnect: true, // 自动重连
+  connectionLimit: 20, // 连接池大小
   idleTimeout: 300000, // 空闲连接超时时间（5分钟）
   maxIdle: 10, // 最大空闲连接数
   enableKeepAlive: true, // 启用保持连接

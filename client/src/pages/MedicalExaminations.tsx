@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Form, Input, DatePicker, Button, Space, Modal, Select, Popconfirm, Row, Col, message } from 'antd';
+import { Card, Table, Form, Input, DatePicker, Button, Space, Modal, Select, Popconfirm, Row, Col, message, Drawer } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import apiClient from '../config/axios';
@@ -43,10 +43,14 @@ const MedicalExaminations: React.FC = () => {
 
   // 模态框状态
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [modalType, setModalType] = useState<'add' | 'edit' | 'view'>('add');
+  const [modalType, setModalType] = useState<'add' | 'edit'>('add');
   const [editingExamination, setEditingExamination] = useState<MedicalExamination | null>(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [modalForm] = Form.useForm();
+
+  // 抽屉状态
+  const [isDetailDrawerVisible, setIsDetailDrawerVisible] = useState(false);
+  const [detailExamination, setDetailExamination] = useState<MedicalExamination | null>(null);
 
   // 处理表格排序、分页变化
   const handleTableChange = (pagination: any, filters: any, sorter: any) => {
@@ -132,14 +136,14 @@ const MedicalExaminations: React.FC = () => {
 
   // 查看体检记录详情
   const handleViewExamination = (examination: MedicalExamination) => {
-    setModalType('view');
-    setEditingExamination(examination);
-    modalForm.setFieldsValue({
-      ...examination,
-      examination_date: examination.examination_date ? moment(examination.examination_date) : null,
-      recheck_date: examination.recheck_date ? moment(examination.recheck_date) : null,
-    });
-    setIsModalVisible(true);
+    setDetailExamination(examination);
+    setIsDetailDrawerVisible(true);
+  };
+
+  // 关闭详情抽屉
+  const handleCloseDetailDrawer = () => {
+    setIsDetailDrawerVisible(false);
+    setDetailExamination(null);
   };
 
   // 删除体检记录
@@ -174,7 +178,7 @@ const MedicalExaminations: React.FC = () => {
       let response;
       if (modalType === 'add') {
         response = await apiClient.post(API_ENDPOINTS.MEDICAL_EXAMINATIONS, formattedValues);
-      } else if (modalType === 'edit') {
+      } else {
         response = await apiClient.put(`${API_ENDPOINTS.MEDICAL_EXAMINATIONS}/${editingExamination?.id}`, formattedValues);
       }
 
@@ -342,24 +346,13 @@ const MedicalExaminations: React.FC = () => {
       render: (value: number) => value === 1 ? '是' : '否'
     },
     {
-      title: '复查时间',
-      dataIndex: 'recheck_date',
-      key: 'recheck_date',
-      align: 'center',
-      sorter: true,
-      render: (date: string | null | undefined) => {
-        if (!date) return '-';
-        return moment(date).format('YYYY/MM/DD');
-      }
-    },
-    {
       title: '操作',
       key: 'action',
       align: 'center',
       render: (_, record: MedicalExamination) => (
         <Space size="middle">
           <Button 
-            type="primary" 
+            type="default" 
             size="small"
             icon={<EyeOutlined />}
             onClick={() => handleViewExamination(record)}
@@ -367,7 +360,7 @@ const MedicalExaminations: React.FC = () => {
             查看详情
           </Button>
           <Button 
-            type="default" 
+            type="primary" 
             size="small"
             icon={<EditOutlined />}
             onClick={() => handleEditExamination(record)}
@@ -450,26 +443,21 @@ const MedicalExaminations: React.FC = () => {
         }} 
       />
 
-      {/* 添加/编辑/查看体检记录模态框 */}
+      {/* 添加/编辑体检记录模态框 */}
       <Modal
-        title={
-          modalType === 'add' ? '添加体检记录' : 
-          modalType === 'edit' ? '编辑体检记录' : 
-          '查看体检记录详情'
-        }
+        title={modalType === 'add' ? '添加体检记录' : '编辑体检记录'}
         open={isModalVisible}
-        onOk={modalType === 'view' ? handleCancel : handleSubmit}
+        onOk={handleSubmit}
         onCancel={handleCancel}
         confirmLoading={submitLoading}
         width={800}
-        okText={modalType === 'view' ? '关闭' : '确定'}
-        cancelText={modalType === 'view' ? undefined : '取消'}
+        okText="确定"
+        cancelText="取消"
       >
         <Form
           form={modalForm}
           layout="vertical"
           style={{ marginTop: 16 }}
-          disabled={modalType === 'view'}
         >
           <Row gutter={16}>
             <Col span={12}>
@@ -561,6 +549,74 @@ const MedicalExaminations: React.FC = () => {
           </Row>
         </Form>
       </Modal>
+
+      {/* 体检记录详情抽屉 */}
+      <Drawer
+        title="体检记录详情"
+        placement="right"
+        onClose={handleCloseDetailDrawer}
+        open={isDetailDrawerVisible}
+        width={600}
+      >
+        {detailExamination && (
+          <div style={{ padding: '16px 0' }}>
+            <Row gutter={[16, 16]}>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>员工姓名：</strong>
+                  <span style={{ marginLeft: 8 }}>{detailExamination.employee_name}</span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>体检日期：</strong>
+                  <span style={{ marginLeft: 8 }}>
+                    {detailExamination.examination_date ? moment(detailExamination.examination_date).format('YYYY年MM月DD日') : '-'}
+                  </span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>电测听结果：</strong>
+                  <span style={{ marginLeft: 8 }}>{detailExamination.audiometry_result || '-'}</span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>粉尘检查结果：</strong>
+                  <span style={{ marginLeft: 8 }}>{detailExamination.dust_examination_result || '-'}</span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>是否需要复查：</strong>
+                  <span style={{ marginLeft: 8 }}>{detailExamination.need_recheck === 1 ? '是' : '否'}</span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>复查时间：</strong>
+                  <span style={{ marginLeft: 8 }}>
+                    {detailExamination.recheck_date ? moment(detailExamination.recheck_date).format('YYYY年MM月DD日') : '-'}
+                  </span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>电测听复查结果：</strong>
+                  <span style={{ marginLeft: 8 }}>{detailExamination.audiometry_recheck_result || '-'}</span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>粉尘复查结果：</strong>
+                  <span style={{ marginLeft: 8 }}>{detailExamination.dust_recheck_result || '-'}</span>
+                </div>
+              </Col>
+            </Row>
+          </div>
+        )}
+      </Drawer>
     </Card>
   );
 };

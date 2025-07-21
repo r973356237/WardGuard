@@ -36,14 +36,14 @@ exports.register = async (req, res) => {
     // 插入新用户
       const [result] = await pool.execute(
         'INSERT INTO users (username, name, password, email, role) VALUES (?, ?, ?, ?, ?)',
-        [username, name, hashedPassword, email, role || 'normal'] // 保持默认角色为普通用户
+        [username, name, hashedPassword, email, role || 'user'] // 默认角色改为user
       );
 
     console.log('用户注册成功:', { id: result.insertId, username, name });
     res.status(201).json({
       success: true,
       message: '注册成功',
-      data: { userId: result.insertId, username, name, email, role: role || 'normal' }
+      data: { userId: result.insertId, username, name, email, role: role || 'user' }
     });
   } catch (err) {
     console.error('注册错误 - SQL状态:', err.sqlState);

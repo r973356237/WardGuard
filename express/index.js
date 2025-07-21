@@ -3,11 +3,12 @@ const cors = require('cors');
 const path = require('path');
 const config = require('./config');
 const { initializeDB, healthCheck } = require('./db');
+const schedulerService = require('./services/schedulerService');
 
 // 打印当前配置信息
 config.printConfig();
 
-// 初始化Express应用
+// 初始化Express应用 - 重启服务器以应用调试增强
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -52,6 +53,7 @@ const employeeRoutes = require('./routes/employeeRoutes');
 const medicalExaminationRoutes = require('./routes/medicalExaminationRoutes');
 const operationRecordRoutes = require('./routes/operationRecordRoutes');
 const systemRoutes = require('./routes/systemRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 
 // 使用路由
 app.use('/api/users', userRoutes);
@@ -60,6 +62,10 @@ app.use('/api/medicines', medicineRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/medical-examinations', medicalExaminationRoutes);
 app.use('/api/operation-records', operationRecordRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/system', systemRoutes);
+
+// 直接挂载系统名称路由（为了兼容前端API配置）
 app.use('/api', systemRoutes);
 
 if (config.isDevelopment()) {
@@ -111,28 +117,39 @@ async function startServer() {
     console.log('🚀 正在启动科室管理系统服务器...');
     
     // 第一步：初始化数据库连接
-    console.log('📊 步骤 1/3: 初始化数据库连接...');
+    console.log('📊 步骤 1/4: 初始化数据库连接...');
     await initializeDB();
     console.log('✅ 数据库连接初始化完成');
     
     // 第二步：等待一段时间确保数据库完全稳定
-    console.log('⏳ 步骤 2/3: 等待数据库稳定...');
+    console.log('⏳ 步骤 2/4: 等待数据库稳定...');
     await new Promise(resolve => setTimeout(resolve, 2000));
     console.log('✅ 数据库连接稳定');
     
-    // 第三步：启动HTTP服务器
-    console.log('🌐 步骤 3/3: 启动HTTP服务器...');
+    // 第三步：初始化定时任务调度器
+    console.log('⏰ 步骤 3/4: 初始化定时任务调度器...');
+    await schedulerService.init();
+    console.log('✅ 定时任务调度器初始化完成');
+    
+    // 第四步：启动HTTP服务器
+    console.log('🌐 步骤 4/4: 启动HTTP服务器...');
     const server = app.listen(PORT, () => {
       console.log('✅ 科室管理系统服务器启动成功!');
       console.log(`🔗 服务器地址: http://localhost:${PORT}`);
       console.log(`📊 健康检查: http://localhost:${PORT}/health`);
       console.log(`🎯 API端点: http://localhost:${PORT}/api`);
+      console.log('📧 邮件提醒服务已启动');
       console.log('🎉 系统已准备就绪，可以接受请求');
     });
 
     // 优雅关闭处理
     const gracefulShutdown = (signal) => {
       console.log(`\n📡 收到 ${signal} 信号，正在优雅关闭服务器...`);
+      
+      // 停止所有定时任务
+      schedulerService.stopAllTasks();
+      console.log('✅ 定时任务已停止');
+      
       server.close(() => {
         console.log('✅ HTTP服务器已关闭');
         process.exit(0);
