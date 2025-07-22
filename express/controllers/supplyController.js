@@ -1,4 +1,5 @@
 const { getPool } = require('../db');
+const { addOperationRecord } = require('./operationRecordController');
 
 /**
  * 获取所有物资列表
@@ -80,6 +81,30 @@ exports.addSupply = async (req, res) => {
     );
 
     console.log('添加物资成功，ID:', result.insertId);
+    
+    // 添加操作记录
+    try {
+      await addOperationRecord(
+        req.user?.id,
+        'create',
+        'supply',
+        result.insertId,
+        supply_name,
+        {
+          supply_name,
+          storage_location,
+          production_date,
+          validity_period_days,
+          supply_number,
+          expiration_date
+        }
+      );
+      console.log('物资添加操作记录已保存');
+    } catch (recordErr) {
+      console.error('保存物资添加操作记录失败:', recordErr.message);
+      // 不影响主要操作，只记录错误
+    }
+    
     res.status(201).json({
       success: true,
       message: '物资添加成功',
@@ -143,6 +168,30 @@ exports.updateSupply = async (req, res) => {
     }
 
     console.log('更新物资成功，ID:', id);
+    
+    // 添加操作记录
+    try {
+      await addOperationRecord(
+        req.user?.id,
+        'update',
+        'supply',
+        id,
+        supply_name,
+        {
+          supply_name,
+          storage_location,
+          production_date,
+          validity_period_days,
+          supply_number,
+          expiration_date
+        }
+      );
+      console.log('物资更新操作记录已保存');
+    } catch (recordErr) {
+      console.error('保存物资更新操作记录失败:', recordErr.message);
+      // 不影响主要操作，只记录错误
+    }
+    
     res.json({
       success: true,
       message: '物资更新成功',
@@ -175,6 +224,16 @@ exports.deleteSupply = async (req, res) => {
     
     const { id } = req.params;
 
+    // 先获取物资信息用于操作记录
+    const [supplyInfo] = await pool.execute('SELECT supply_name FROM supplies WHERE id = ?', [id]);
+    
+    if (supplyInfo.length === 0) {
+      console.log('删除物资失败，未找到ID为', id, '的物资');
+      return res.status(404).json({ success: false, message: '物资不存在' });
+    }
+
+    const supplyName = supplyInfo[0].supply_name;
+
     const [result] = await pool.execute('DELETE FROM supplies WHERE id = ?', [id]);
 
     if (result.affectedRows === 0) {
@@ -183,6 +242,26 @@ exports.deleteSupply = async (req, res) => {
     }
 
     console.log('删除物资成功，ID:', id);
+    
+    // 添加操作记录
+    try {
+      await addOperationRecord(
+        req.user?.id,
+        'delete',
+        'supply',
+        id,
+        supplyName,
+        {
+          deleted_supply_id: id,
+          deleted_supply_name: supplyName
+        }
+      );
+      console.log('物资删除操作记录已保存');
+    } catch (recordErr) {
+      console.error('保存物资删除操作记录失败:', recordErr.message);
+      // 不影响主要操作，只记录错误
+    }
+    
     res.json({
       success: true,
       message: '物资删除成功'

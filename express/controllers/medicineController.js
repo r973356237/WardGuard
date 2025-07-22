@@ -1,4 +1,5 @@
 const { getPool } = require('../db');
+const { addOperationRecord } = require('./operationRecordController');
 
 /**
  * 获取所有药品列表
@@ -42,6 +43,30 @@ exports.addMedicine = async (req, res) => {
     );
 
     console.log('添加药品成功，ID:', result.insertId);
+    
+    // 添加操作记录
+    try {
+      await addOperationRecord(
+        req.user?.id,
+        'create',
+        'medicine',
+        result.insertId,
+        medicine_name,
+        {
+          medicine_name,
+          storage_location,
+          production_date,
+          validity_period_days,
+          quantity,
+          expiration_date
+        }
+      );
+      console.log('药品添加操作记录已保存');
+    } catch (recordErr) {
+      console.error('保存药品添加操作记录失败:', recordErr.message);
+      // 不影响主要操作，只记录错误
+    }
+    
     res.status(201).json({
       success: true,
       message: '药品添加成功',
@@ -85,6 +110,30 @@ exports.updateMedicine = async (req, res) => {
     }
 
     console.log('更新药品成功，ID:', id);
+    
+    // 添加操作记录
+    try {
+      await addOperationRecord(
+        req.user?.id,
+        'update',
+        'medicine',
+        id,
+        medicine_name,
+        {
+          medicine_name,
+          storage_location,
+          production_date,
+          validity_period_days,
+          quantity,
+          expiration_date
+        }
+      );
+      console.log('药品更新操作记录已保存');
+    } catch (recordErr) {
+      console.error('保存药品更新操作记录失败:', recordErr.message);
+      // 不影响主要操作，只记录错误
+    }
+    
     res.json({
       success: true,
       message: '药品更新成功',
@@ -105,6 +154,16 @@ exports.deleteMedicine = async (req, res) => {
     const pool = await getPool();
     const { id } = req.params;
 
+    // 先获取药品信息用于操作记录
+    const [medicineInfo] = await pool.execute('SELECT medicine_name FROM medicines WHERE id = ?', [id]);
+    
+    if (medicineInfo.length === 0) {
+      console.log('删除药品失败，未找到ID为', id, '的药品');
+      return res.status(404).json({ success: false, message: '药品不存在' });
+    }
+
+    const medicineName = medicineInfo[0].medicine_name;
+
     const [result] = await pool.execute('DELETE FROM medicines WHERE id = ?', [id]);
 
     if (result.affectedRows === 0) {
@@ -113,6 +172,26 @@ exports.deleteMedicine = async (req, res) => {
     }
 
     console.log('删除药品成功，ID:', id);
+    
+    // 添加操作记录
+    try {
+      await addOperationRecord(
+        req.user?.id,
+        'delete',
+        'medicine',
+        id,
+        medicineName,
+        {
+          deleted_medicine_id: id,
+          deleted_medicine_name: medicineName
+        }
+      );
+      console.log('药品删除操作记录已保存');
+    } catch (recordErr) {
+      console.error('保存药品删除操作记录失败:', recordErr.message);
+      // 不影响主要操作，只记录错误
+    }
+    
     res.json({
       success: true,
       message: '药品删除成功'

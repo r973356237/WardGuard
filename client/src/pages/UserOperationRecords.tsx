@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Timeline, Card, Button, Select, Pagination, Spin, Empty, Modal, Tag, Descriptions, Typography } from 'antd';
 import { ClockCircleOutlined, UserOutlined, EditOutlined, DeleteOutlined, PlusOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { buildApiUrl, API_ENDPOINTS } from '../config/api';
@@ -12,7 +12,7 @@ interface OperationRecord {
   user_id: number;
   username?: string;
   user_name?: string;
-  operation_type: 'add' | 'update' | 'delete';
+  operation_type: 'create' | 'update' | 'delete';
   target_type: string;
   target_id: number;
   target_name: string;
@@ -36,7 +36,7 @@ const UserOperationRecords: React.FC = () => {
   const [currentRecord, setCurrentRecord] = useState<OperationRecord | null>(null);
 
   // 获取操作记录
-  const fetchOperationRecords = async () => {
+  const fetchOperationRecords = useCallback(async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
@@ -72,7 +72,7 @@ const UserOperationRecords: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, pagination.current, pagination.pageSize, targetType, navigate]);
 
   // 获取操作记录详情
   const fetchRecordDetail = async (recordId: number) => {
@@ -109,12 +109,30 @@ const UserOperationRecords: React.FC = () => {
   // 初始加载和筛选条件变化时重新获取数据
   useEffect(() => {
     fetchOperationRecords();
-  }, [userId, pagination.current, pagination.pageSize, targetType]);
+  }, [fetchOperationRecords]);
+
+  // 获取目标类型的中文显示
+  const getTargetTypeDisplay = (targetType: string) => {
+    switch (targetType) {
+      case 'user':
+        return '用户';
+      case 'employee':
+        return '员工';
+      case 'medicine':
+        return '药品';
+      case 'supply':
+        return '物资';
+      case 'medical_examination':
+        return '体检记录';
+      default:
+        return targetType;
+    }
+  };
 
   // 获取操作类型对应的图标和颜色
   const getOperationIcon = (type: string) => {
     switch (type) {
-      case 'add':
+      case 'create':
         return <PlusOutlined style={{ color: '#52c41a' }} />;
       case 'update':
         return <EditOutlined style={{ color: '#1890ff' }} />;
@@ -128,7 +146,7 @@ const UserOperationRecords: React.FC = () => {
   // 获取操作类型对应的标签
   const getOperationTag = (type: string) => {
     switch (type) {
-      case 'add':
+      case 'create':
         return <Tag color="success">添加</Tag>;
       case 'update':
         return <Tag color="processing">更新</Tag>;
@@ -142,39 +160,126 @@ const UserOperationRecords: React.FC = () => {
   // 格式化时间
   const formatTime = (timeString: string) => {
     const date = new Date(timeString);
-    return date.toLocaleString('zh-CN', {
+    return date.toLocaleDateString('zh-CN', {
       year: 'numeric',
       month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false
-    });
+      day: '2-digit'
+    }).replace(/\//g, '-');
   };
 
   // 渲染操作详情
   const renderOperationDetails = (record: OperationRecord) => {
     if (!record.operation_details) return null;
     
-    let details;
-    try {
-      details = typeof record.operation_details === 'string' 
-        ? JSON.parse(record.operation_details) 
-        : record.operation_details;
-    } catch (e) {
-      return <Text type="secondary">无法解析操作详情</Text>;
+    // 如果操作详情是字符串，直接显示
+    if (typeof record.operation_details === 'string') {
+      // 尝试解析JSON，如果失败则作为普通字符串显示
+      try {
+        const parsed = JSON.parse(record.operation_details);
+        // 如果解析成功且是对象，则按对象格式显示
+        if (typeof parsed === 'object' && parsed !== null) {
+          return (
+            <Descriptions bordered size="small" column={1}>
+              {Object.entries(parsed).map(([key, value]) => (
+                <Descriptions.Item key={key} label={getFieldLabel(key)}>
+                  {formatFieldValue(key, value)}
+                </Descriptions.Item>
+              ))}
+            </Descriptions>
+          );
+        } else {
+          // 如果解析结果是字符串，直接显示
+          return <Text>{String(parsed)}</Text>;
+        }
+      } catch (e) {
+        // 解析失败，作为普通字符串显示
+        return <Text>{record.operation_details}</Text>;
+      }
     }
+    
+    // 如果操作详情已经是对象，按对象格式显示
+    if (typeof record.operation_details === 'object') {
+      return (
+        <Descriptions bordered size="small" column={1}>
+          {Object.entries(record.operation_details).map(([key, value]) => (
+            <Descriptions.Item key={key} label={getFieldLabel(key)}>
+              {formatFieldValue(key, value)}
+            </Descriptions.Item>
+          ))}
+        </Descriptions>
+      );
+    }
+    
+    return <Text type="secondary">无法解析操作详情</Text>;
+  };
 
-    return (
-      <Descriptions bordered size="small" column={1}>
-        {Object.entries(details).map(([key, value]) => (
-          <Descriptions.Item key={key} label={key}>
-            {typeof value === 'boolean' ? (value ? '是' : '否') : String(value)}
-          </Descriptions.Item>
-        ))}
-      </Descriptions>
-    );
+  // 获取字段的中文标签
+  const getFieldLabel = (key: string) => {
+    const labelMap: { [key: string]: string } = {
+      'username': '用户名',
+      'name': '姓名',
+      'email': '邮箱',
+      'role': '角色',
+      'status': '状态',
+      'password_changed': '密码是否修改',
+      'employee_id': '员工编号',
+      'department': '部门',
+      'position': '职位',
+      'phone': '电话',
+      'hire_date': '入职日期',
+      'medicine_name': '药品名称',
+      'specification': '规格',
+      'unit': '单位',
+      'price': '价格',
+      'stock_quantity': '库存数量',
+      'expiry_date': '过期日期',
+      'supplier': '供应商',
+      'supply_name': '物资名称',
+      'category': '类别',
+      'quantity': '数量',
+      'location': '存放位置',
+      'purchase_date': '采购日期',
+      'examination_date': '体检日期',
+      'examination_type': '体检类型',
+      'result': '体检结果',
+      'notes': '备注',
+      'next_examination_date': '下次体检日期'
+    };
+    return labelMap[key] || key;
+  };
+
+  // 格式化字段值
+  const formatFieldValue = (key: string, value: any) => {
+    if (value === null || value === undefined) {
+      return <Text type="secondary">-</Text>;
+    }
+    
+    if (typeof value === 'boolean') {
+      return value ? '是' : '否';
+    }
+    
+    // 日期字段格式化
+    if (key.includes('date') || key.includes('time')) {
+      try {
+        const date = new Date(value);
+        if (!isNaN(date.getTime())) {
+          return date.toLocaleDateString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+          }).replace(/\//g, '-');
+        }
+      } catch (e) {
+        // 如果不是有效日期，直接显示原值
+      }
+    }
+    
+    // 价格字段格式化
+    if (key === 'price' && typeof value === 'number') {
+      return `¥${value.toFixed(2)}`;
+    }
+    
+    return String(value);
   };
 
   return (
@@ -211,12 +316,12 @@ const UserOperationRecords: React.FC = () => {
                 <Timeline.Item
                   key={record.id}
                   dot={getOperationIcon(record.operation_type)}
-                  color={record.operation_type === 'add' ? 'green' : record.operation_type === 'update' ? 'blue' : 'red'}
+                  color={record.operation_type === 'create' ? 'green' : record.operation_type === 'update' ? 'blue' : 'red'}
                 >
                   <div style={{ marginBottom: 8 }}>
                     <Text strong>{record.user_name || record.username || `用户ID: ${record.user_id}`}</Text>
                     {' '}{getOperationTag(record.operation_type)}{' '}
-                    <Text>{record.target_type === 'user' ? '用户' : record.target_type}</Text>
+                    <Text>{getTargetTypeDisplay(record.target_type)}</Text>
                     {' '}<Text strong>{record.target_name}</Text>
                     <Button 
                       type="link" 
@@ -279,7 +384,7 @@ const UserOperationRecords: React.FC = () => {
                 {getOperationTag(currentRecord.operation_type)}
               </Descriptions.Item>
               <Descriptions.Item label="操作目标">
-                {currentRecord.target_type === 'user' ? '用户' : currentRecord.target_type} - {currentRecord.target_name}
+                {getTargetTypeDisplay(currentRecord.target_type)} - {currentRecord.target_name}
               </Descriptions.Item>
               <Descriptions.Item label="操作时间">
                 <ClockCircleOutlined /> {formatTime(currentRecord.operation_time)}

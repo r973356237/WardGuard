@@ -1,4 +1,5 @@
 const db = require('../db');
+const { addOperationRecord } = require('./operationRecordController');
 
 /**
  * 获取所有人员列表
@@ -105,6 +106,36 @@ exports.addEmployee = async (req, res) => {
     );
 
     console.log('添加人员成功，ID:', result.insertId);
+    
+    // 添加操作记录
+    try {
+      await addOperationRecord(
+        req.user?.id,
+        'create',
+        'employee',
+        result.insertId,
+        name,
+        {
+          name,
+          employee_number,
+          gender,
+          workshop,
+          position,
+          birth_date,
+          hire_date,
+          work_start_date,
+          original_company,
+          total_exposure_time: calculatedTotalExposureTime,
+          pre_hire_exposure_time,
+          id_number
+        }
+      );
+      console.log('员工添加操作记录已保存');
+    } catch (recordErr) {
+      console.error('保存员工添加操作记录失败:', recordErr.message);
+      // 不影响主要操作，只记录错误
+    }
+    
     res.status(201).json({
       success: true,
       message: '人员添加成功',
@@ -192,6 +223,36 @@ exports.updateEmployee = async (req, res) => {
     }
 
     console.log('更新人员成功，ID:', id);
+    
+    // 添加操作记录
+    try {
+      await addOperationRecord(
+        req.user?.id,
+        'update',
+        'employee',
+        id,
+        name,
+        {
+          name,
+          employee_number,
+          gender,
+          workshop,
+          position,
+          birth_date,
+          hire_date,
+          work_start_date,
+          original_company,
+          total_exposure_time: calculatedTotalExposureTime,
+          pre_hire_exposure_time,
+          id_number
+        }
+      );
+      console.log('员工更新操作记录已保存');
+    } catch (recordErr) {
+      console.error('保存员工更新操作记录失败:', recordErr.message);
+      // 不影响主要操作，只记录错误
+    }
+    
     res.json({
       success: true,
       message: '人员更新成功',
@@ -218,6 +279,16 @@ exports.deleteEmployee = async (req, res) => {
     // 获取数据库连接池
     const pool = await db.getPool();
     
+    // 先获取员工信息用于操作记录
+    const [employeeInfo] = await pool.execute('SELECT name FROM employees WHERE id = ?', [id]);
+    
+    if (employeeInfo.length === 0) {
+      console.log('删除人员失败，未找到ID为', id, '的人员');
+      return res.status(404).json({ success: false, message: '人员不存在' });
+    }
+
+    const employeeName = employeeInfo[0].name;
+    
     // 检查是否有关联的体检信息
     const [medicalExaminations] = await pool.execute('SELECT * FROM medical_examinations WHERE employee_number IN (SELECT employee_number FROM employees WHERE id = ?)', [id]);
     if (medicalExaminations.length > 0) {
@@ -233,6 +304,26 @@ exports.deleteEmployee = async (req, res) => {
     }
 
     console.log('删除人员成功，ID:', id);
+    
+    // 添加操作记录
+    try {
+      await addOperationRecord(
+        req.user?.id,
+        'delete',
+        'employee',
+        id,
+        employeeName,
+        {
+          deleted_employee_id: id,
+          deleted_employee_name: employeeName
+        }
+      );
+      console.log('员工删除操作记录已保存');
+    } catch (recordErr) {
+      console.error('保存员工删除操作记录失败:', recordErr.message);
+      // 不影响主要操作，只记录错误
+    }
+    
     res.json({
       success: true,
       message: '人员删除成功'

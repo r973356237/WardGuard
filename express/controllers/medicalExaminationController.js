@@ -1,4 +1,5 @@
 const { getPool } = require('../db');
+const { addOperationRecord } = require('./operationRecordController');
 
 /**
  * 获取所有体检信息列表
@@ -104,6 +105,21 @@ exports.addMedicalExamination = async (req, res) => {
     );
 
     console.log('添加体检信息成功，ID:', result.insertId, '工号:', finalEmployeeNumber, '姓名:', finalEmployeeName);
+    
+    // 添加操作记录
+    try {
+      await addOperationRecord(
+        req.user?.id,
+        'create',
+        'medical_examination',
+        result.insertId,
+        `体检信息-${finalEmployeeName}`,
+        `添加了员工 ${finalEmployeeName}(${finalEmployeeNumber}) 的体检信息，体检日期：${examination_date}，电测听结果：${audiometry_result}，粉尘检查结果：${dust_examination_result}`
+      );
+    } catch (recordErr) {
+      console.error('保存操作记录失败:', recordErr);
+    }
+    
     res.status(201).json({
       success: true,
       message: '体检信息添加成功',
@@ -189,6 +205,21 @@ exports.updateMedicalExamination = async (req, res) => {
     }
 
     console.log('更新体检信息成功，ID:', id, '工号:', finalEmployeeNumber, '姓名:', finalEmployeeName);
+    
+    // 添加操作记录
+    try {
+      await addOperationRecord(
+        req.user?.id,
+        'update',
+        'medical_examination',
+        id,
+        `体检信息-${finalEmployeeName}`,
+        `修改了员工 ${finalEmployeeName}(${finalEmployeeNumber}) 的体检信息，体检日期：${examination_date}，电测听结果：${audiometry_result}，粉尘检查结果：${dust_examination_result}`
+      );
+    } catch (recordErr) {
+      console.error('保存操作记录失败:', recordErr);
+    }
+    
     res.json({
       success: true,
       message: '体检信息更新成功',
@@ -220,14 +251,36 @@ exports.deleteMedicalExamination = async (req, res) => {
     const { id } = req.params;
     const pool = await getPool();
 
-    const [result] = await pool.execute('DELETE FROM medical_examinations WHERE id = ?', [id]);
+    // 先查询体检信息以获取员工信息
+    const [examinations] = await pool.execute(
+      'SELECT me.*, e.name as employee_name FROM medical_examinations me LEFT JOIN employees e ON me.employee_number = e.employee_number WHERE me.id = ?',
+      [id]
+    );
 
-    if (result.affectedRows === 0) {
+    if (examinations.length === 0) {
       console.log('删除体检信息失败，未找到ID为', id, '的体检信息');
       return res.status(404).json({ success: false, message: '体检信息不存在' });
     }
 
+    const examination = examinations[0];
+    const [result] = await pool.execute('DELETE FROM medical_examinations WHERE id = ?', [id]);
+
     console.log('删除体检信息成功，ID:', id);
+    
+    // 添加操作记录
+    try {
+      await addOperationRecord(
+        req.user?.id,
+        'delete',
+        'medical_examination',
+        id,
+        `体检信息-${examination.employee_name || examination.employee_number}`,
+        `删除了员工 ${examination.employee_name || examination.employee_number}(${examination.employee_number}) 的体检信息，体检日期：${examination.examination_date}`
+      );
+    } catch (recordErr) {
+      console.error('保存操作记录失败:', recordErr);
+    }
+    
     res.json({
       success: true,
       message: '体检信息删除成功'

@@ -95,7 +95,7 @@ exports.getAllUsers = async (req, res) => {
 exports.getMe = async (req, res) => {
   try {
     const pool = await getPool();
-    const [users] = await pool.execute('SELECT id, username, name, email, role FROM users WHERE id = ?', [req.user.userId]);
+    const [users] = await pool.execute('SELECT id, username, name, email, role FROM users WHERE id = ?', [req.user.id]);
     
     if (users.length === 0) {
       return res.status(404).json({ success: false, message: '用户不存在' });
@@ -209,7 +209,7 @@ exports.createUser = async (req, res) => {
       status: status || 'active'
     };
     await addOperationRecord(
-      req.user.userId, // 当前登录用户ID作为操作者
+      req.user.id, // 当前登录用户ID作为操作者
       'add',
       'user',
       result.insertId,
@@ -304,7 +304,7 @@ exports.updateUser = async (req, res) => {
       password_changed: password && password.trim() !== ''
     };
     await addOperationRecord(
-      req.user.userId, // 当前登录用户ID作为操作者
+      req.user.id, // 当前登录用户ID作为操作者
       'update',
       'user',
       id,
@@ -345,7 +345,7 @@ exports.deleteUser = async (req, res) => {
     }
 
     // 防止删除自己
-    if (req.user && req.user.userId === parseInt(id)) {
+    if (req.user && req.user.id === parseInt(id)) {
       console.log('尝试删除自己的账户:', id);
       return res.status(400).json({ success: false, message: '不能删除自己的账户' });
     }
@@ -369,7 +369,7 @@ exports.deleteUser = async (req, res) => {
       role: deletedUser.role
     };
     await addOperationRecord(
-      req.user.userId, // 当前登录用户ID作为操作者
+      req.user.id, // 当前登录用户ID作为操作者
       'delete',
       'user',
       id,
