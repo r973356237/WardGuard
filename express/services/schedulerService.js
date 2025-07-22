@@ -28,8 +28,8 @@ class SchedulerService {
   async setupEmailReminderTask() {
     try {
       const pool = await getPool();
-      // 获取邮件配置
-      const [configRows] = await pool.query('SELECT * FROM email_config LIMIT 1');
+      // 获取邮件配置（只需要提醒频率和时间）
+      const [configRows] = await pool.query('SELECT reminder_frequency, reminder_time FROM email_config LIMIT 1');
       if (!configRows || configRows.length === 0) {
         console.log('未配置邮件设置，跳过邮件提醒任务');
         return;

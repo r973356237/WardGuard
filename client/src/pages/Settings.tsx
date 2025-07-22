@@ -12,9 +12,7 @@ import {
   Collapse,
   Alert,
   Modal,
-  Typography,
-  Row,
-  Col
+  Typography
 } from 'antd';
 import { 
   MailOutlined, 
@@ -48,17 +46,20 @@ interface User {
 const Settings: React.FC<SettingsProps> = ({ systemName, setSystemName }) => {
   const [systemForm] = Form.useForm();
   const [emailForm] = Form.useForm();
+  const [smtpForm] = Form.useForm();
   const [testEmailForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [smtpLoading, setSmtpLoading] = useState(false);
   const [testLoading, setTestLoading] = useState(false);
-  const [emailConfig, setEmailConfig] = useState<any>({});
+  const [smtpConfig, setSmtpConfig] = useState<any>({});
   const [users, setUsers] = useState<User[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [testEmailModalVisible, setTestEmailModalVisible] = useState(false);
+  const [selectedFrequency, setSelectedFrequency] = useState<string>('daily');
 
-  // 检查是否已配置基础邮件服务（后端不返回密码，所以只检查其他必填字段）
-  const hasBasicConfig = emailConfig.smtp_host && emailConfig.smtp_port && 
-                         emailConfig.smtp_user;
+  // 检查是否已配置基础邮件服务
+  const hasBasicConfig = smtpConfig.smtp_host && smtpConfig.smtp_port && 
+                         smtpConfig.smtp_user;
 
   // 基础邮件配置面板的默认状态（已配置则折叠）
   const [basicConfigCollapsed, setBasicConfigCollapsed] = useState(true);
@@ -81,21 +82,22 @@ const Settings: React.FC<SettingsProps> = ({ systemName, setSystemName }) => {
     }
   }, []);
 
-  // 获取邮件配置
-  const fetchEmailConfig = useCallback(async () => {
+  // 获取SMTP配置
+  const fetchSmtpConfig = useCallback(async () => {
     try {
-      const response = await apiClient.get(`${API_ENDPOINTS.SYSTEM}/email-config`);
+      const response = await apiClient.get(`${API_ENDPOINTS.SYSTEM}/smtp-config`);
       if (response.data.success) {
         const config = response.data.data;
-        setEmailConfig(config);
+        setSmtpConfig(config);
         
-        // 设置表单值
+        // 设置SMTP表单值（密码字段不设置，保持为空以显示星号）
         const formValues = {
-          ...config,
-          reminder_time: config.reminder_time ? dayjs(config.reminder_time, 'HH:mm') : dayjs('09:30', 'HH:mm'),
-          recipient_email: config.recipient_email ? config.recipient_email.split(',') : []
+          smtp_host: config.smtp_host || '',
+          smtp_port: config.smtp_port || '',
+          smtp_user: config.smtp_user || '',
+          // smtp_password 不设置，让用户重新输入
         };
-        emailForm.setFieldsValue(formValues);
+        smtpForm.setFieldsValue(formValues);
         
         // 根据配置状态设置折叠面板状态
         const isConfigured = config.smtp_host && config.smtp_port && config.smtp_user;
@@ -103,18 +105,75 @@ const Settings: React.FC<SettingsProps> = ({ systemName, setSystemName }) => {
         setReminderConfigCollapsed(!isConfigured);
       }
     } catch (error) {
+      console.error('获取SMTP配置失败:', error);
+    }
+  }, [smtpForm]);
+
+  // 获取邮件配置
+  const fetchEmailConfig = useCallback(async () => {
+    try {
+      const response = await apiClient.get(`${API_ENDPOINTS.SYSTEM}/email-config`);
+      if (response.data.success) {
+        const config = response.data.data;
+        
+        // 设置表单值
+        const formValues = {
+          recipient_email: config.recipient_email ? config.recipient_email.split(',') : [],
+          reminder_frequency: config.reminder_frequency || 'daily',
+          reminder_time: config.reminder_time ? dayjs(config.reminder_time, 'HH:mm') : dayjs('09:30', 'HH:mm'),
+          weekly_day: config.weekly_day || '1', // 默认星期一
+          monthly_day: config.monthly_day || 1,   // 默认每月1日
+          email_subject: config.email_subject || '【系统提醒】物资/药品过期通知',
+          email_template: config.email_template || `尊敬的管理员：
+
+您好！系统检测到以下物资或药品即将过期或已过期，请及时处理：
+
+{EXPIRED_ITEMS}
+
+请登录系统查看详细信息并及时处理。
+
+此邮件由系统自动发送，请勿回复。
+
+系统管理员
+{CURRENT_DATE}`
+        };
+        emailForm.setFieldsValue(formValues);
+        
+        // 设置频率状态
+        setSelectedFrequency(config.reminder_frequency || 'daily');
+      }
+    } catch (error) {
       console.error('获取邮件配置失败:', error);
     }
   }, [emailForm]);
 
   useEffect(() => {
+    fetchSmtpConfig();
     fetchEmailConfig();
     fetchUsers();
-  }, [fetchEmailConfig, fetchUsers]);
+  }, [fetchSmtpConfig, fetchEmailConfig, fetchUsers]);
 
   const onSystemFinish = (values: any) => {
     setSystemName(values.systemName);
     message.success('系统设置保存成功');
+  };
+
+  const onSmtpFinish = async (values: any) => {
+    try {
+      setSmtpLoading(true);
+      const response = await apiClient.post(`${API_ENDPOINTS.SYSTEM}/smtp-config`, values);
+      if (response.data.success) {
+        message.success('SMTP配置保存成功');
+        fetchSmtpConfig();
+      } else {
+        message.error('SMTP配置保存失败');
+      }
+    } catch (error) {
+      console.error('保存SMTP配置失败:', error);
+      message.error('SMTP配置保存失败');
+    } finally {
+      setSmtpLoading(false);
+    }
   };
 
   const onEmailFinish = async (values: any) => {
@@ -149,7 +208,9 @@ const Settings: React.FC<SettingsProps> = ({ systemName, setSystemName }) => {
       const payload = testRecipients ? { test_recipients: testRecipients.join(',') } : {};
       const response = await apiClient.post(`${API_ENDPOINTS.SYSTEM}/test-email`, payload);
       if (response.data.success) {
-        message.success('测试邮件发送成功，请检查收件箱');
+        const expiredCount = response.data.expiredItemsCount || 0;
+        const countMessage = expiredCount > 0 ? `（包含${expiredCount}个过期物品）` : '（当前无过期物品）';
+        message.success(`测试邮件发送成功${countMessage}，请检查收件箱`);
         setTestEmailModalVisible(false);
         testEmailForm.resetFields();
       } else {
@@ -164,10 +225,18 @@ const Settings: React.FC<SettingsProps> = ({ systemName, setSystemName }) => {
   };
 
   const handleTestEmailSubmit = (values: any) => {
-    handleTestEmail(values.test_recipients);
+    // 如果收件人为空，则传递undefined使用默认收件人
+    const recipients = Array.isArray(values.test_recipients) && values.test_recipients.length > 0 
+      ? values.test_recipients.filter((email: string) => email.trim()) 
+      : undefined;
+    handleTestEmail(recipients);
   };
 
   const showTestEmailModal = () => {
+    // 在打开模态框时设置最新的收件人值
+    testEmailForm.setFieldsValue({
+      test_recipients: emailForm.getFieldValue('recipient_email') || []
+    });
     setTestEmailModalVisible(true);
   };
 
@@ -209,32 +278,32 @@ const Settings: React.FC<SettingsProps> = ({ systemName, setSystemName }) => {
         />
       )}
       
-      <Form
-        form={emailForm}
-        layout="vertical"
-        onFinish={onEmailFinish}
+      <Collapse 
+        activeKey={[
+          ...(basicConfigCollapsed ? [] : ['basic']),
+          ...(reminderConfigCollapsed ? [] : ['reminder'])
+        ]}
+        onChange={(keys) => {
+          setBasicConfigCollapsed(!keys.includes('basic'));
+          setReminderConfigCollapsed(!keys.includes('reminder'));
+        }}
+        expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
+        style={{ marginBottom: 24 }}
       >
-        <Collapse 
-          activeKey={[
-            ...(basicConfigCollapsed ? [] : ['basic']),
-            ...(reminderConfigCollapsed ? [] : ['reminder'])
-          ]}
-          onChange={(keys) => {
-            setBasicConfigCollapsed(!keys.includes('basic'));
-            setReminderConfigCollapsed(!keys.includes('reminder'));
-          }}
-          expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
-          style={{ marginBottom: 24 }}
+        <Panel 
+          header={
+            <Space>
+              <SettingOutlined />
+              <span>基础邮件服务配置</span>
+              {hasBasicConfig && <Text type="success">（已配置）</Text>}
+            </Space>
+          } 
+          key="basic"
         >
-          <Panel 
-            header={
-              <Space>
-                <SettingOutlined />
-                <span>基础邮件服务配置</span>
-                {hasBasicConfig && <Text type="success">（已配置）</Text>}
-              </Space>
-            } 
-            key="basic"
+          <Form
+            form={smtpForm}
+            layout="vertical"
+            onFinish={onSmtpFinish}
           >
             <Form.Item
               name="smtp_host"
@@ -267,20 +336,36 @@ const Settings: React.FC<SettingsProps> = ({ systemName, setSystemName }) => {
               name="smtp_password"
               label="邮箱密码/授权码"
               rules={[{ required: true, message: '请输入邮箱密码或授权码' }]}
+              extra={hasBasicConfig ? "已配置密码，如需修改请重新输入" : "请输入邮箱密码或授权码"}
             >
-              <Input.Password placeholder="输入邮箱密码或授权码" />
+              <Input.Password 
+                placeholder={hasBasicConfig ? "重新输入密码以修改" : "输入邮箱密码或授权码"} 
+                visibilityToggle
+              />
             </Form.Item>
-          </Panel>
-          
-          <Panel 
-            header={
-              <Space>
-                <UserOutlined />
-                <span>提醒设置</span>
-                {hasBasicConfig && <Text type="secondary">（可配置）</Text>}
-              </Space>
-            } 
-            key="reminder"
+
+            <Form.Item>
+              <Button type="primary" htmlType="submit" loading={smtpLoading}>
+                保存SMTP配置
+              </Button>
+            </Form.Item>
+          </Form>
+        </Panel>
+        
+        <Panel 
+          header={
+            <Space>
+              <UserOutlined />
+              <span>提醒设置</span>
+              {hasBasicConfig && <Text type="secondary">（可配置）</Text>}
+            </Space>
+          } 
+          key="reminder"
+        >
+          <Form
+            form={emailForm}
+            layout="vertical"
+            onFinish={onEmailFinish}
           >
             <Form.Item
               name="recipient_email"
@@ -307,52 +392,85 @@ const Settings: React.FC<SettingsProps> = ({ systemName, setSystemName }) => {
               </Select>
             </Form.Item>
 
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item
-                  name="reminder_frequency"
-                  label="提醒频率"
-                  rules={[{ required: true, message: '请选择提醒频率' }]}
-                  extra={
-                    <Text type="secondary">
-                      <ClockCircleOutlined style={{ marginRight: 4 }} />
-                      仅在存在过期药品或物资时生效
-                    </Text>
-                  }
-                >
-                  <Select placeholder="选择提醒频率">
-                    <Option value="daily">每日</Option>
-                    <Option value="weekly">每周</Option>
-                    <Option value="monthly">每月</Option>
-                  </Select>
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item
-                  name="reminder_time"
-                  label={
-                    <Space>
-                      <ClockCircleOutlined />
-                      提醒时间
-                    </Space>
-                  }
-                  rules={[{ required: true, message: '请选择提醒时间' }]}
-                >
-                  <TimePicker 
-                    format="HH:mm" 
-                    placeholder="选择提醒时间"
-                    defaultValue={dayjs('09:30', 'HH:mm')}
-                    style={{ width: '100%' }}
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
+            <Form.Item
+              name="reminder_frequency"
+              label="提醒频率"
+              rules={[{ required: true, message: '请选择提醒频率' }]}
+              extra={
+                <Text type="secondary">
+                  <ClockCircleOutlined style={{ marginRight: 4 }} />
+                  仅在存在过期药品或物资时生效
+                </Text>
+              }
+            >
+              <Select 
+                placeholder="选择提醒频率"
+                onChange={(value) => setSelectedFrequency(value)}
+                value={selectedFrequency}
+              >
+                <Option value="daily">每日</Option>
+                <Option value="weekly">每周</Option>
+                <Option value="monthly">每月</Option>
+              </Select>
+            </Form.Item>
+
+            {/* 每周的具体日期选择 */}
+            {selectedFrequency === 'weekly' && (
+              <Form.Item
+                name="weekly_day"
+                label="每周的哪一天"
+                rules={[{ required: true, message: '请选择每周的哪一天' }]}
+              >
+                <Select placeholder="选择星期几">
+                  <Option value="1">星期一</Option>
+                  <Option value="2">星期二</Option>
+                  <Option value="3">星期三</Option>
+                  <Option value="4">星期四</Option>
+                  <Option value="5">星期五</Option>
+                  <Option value="6">星期六</Option>
+                  <Option value="0">星期日</Option>
+                </Select>
+              </Form.Item>
+            )}
+
+            {/* 每月的具体日期选择 */}
+            {selectedFrequency === 'monthly' && (
+              <Form.Item
+                name="monthly_day"
+                label="每月的哪一天"
+                rules={[{ required: true, message: '请选择每月的哪一天' }]}
+                extra="如果选择的日期在该月不存在（如2月30日），将自动调整为该月最后一天"
+              >
+                <Select placeholder="选择日期">
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                    <Option key={day} value={day}>{day}日</Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            )}
+
+            <Form.Item
+              name="reminder_time"
+              label={
+                <Space>
+                  <ClockCircleOutlined />
+                  提醒时间
+                </Space>
+              }
+              rules={[{ required: true, message: '请选择提醒时间' }]}
+            >
+              <TimePicker 
+                format="HH:mm" 
+                placeholder="选择提醒时间"
+                defaultValue={dayjs('09:30', 'HH:mm')}
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
 
             <Form.Item
               name="email_subject"
               label="邮件主题"
               rules={[{ required: true, message: '请输入邮件主题' }]}
-              initialValue="【系统提醒】物资/药品过期通知"
             >
               <Input placeholder="输入邮件主题" />
             </Form.Item>
@@ -361,50 +479,30 @@ const Settings: React.FC<SettingsProps> = ({ systemName, setSystemName }) => {
               name="email_template"
               label="邮件模板"
               rules={[{ required: true, message: '请输入邮件模板' }]}
-              initialValue={`尊敬的管理员：
-
-您好！系统检测到以下物资或药品即将过期或已过期，请及时处理：
-
-{EXPIRED_ITEMS}
-
-请登录系统查看详细信息并及时处理。
-
-此邮件由系统自动发送，请勿回复。
-
-系统管理员
-{CURRENT_DATE}`}
             >
               <TextArea 
                 rows={8} 
                 placeholder="输入邮件模板，可使用变量：{EXPIRED_ITEMS}、{CURRENT_DATE}" 
               />
             </Form.Item>
-          </Panel>
-        </Collapse>
 
-        <Form.Item>
-          <Space>
-            <Button type="primary" htmlType="submit" loading={loading}>
-              保存邮件配置
-            </Button>
-            <Button 
-              icon={<ExperimentOutlined />} 
-              onClick={() => handleTestEmail()}
-              loading={testLoading}
-              disabled={!hasBasicConfig}
-            >
-              快速测试邮件
-            </Button>
-            <Button 
-              icon={<MailOutlined />} 
-              onClick={showTestEmailModal}
-              disabled={!hasBasicConfig}
-            >
-              自定义测试邮件
-            </Button>
-          </Space>
-        </Form.Item>
-      </Form>
+            <Form.Item>
+              <Space>
+                <Button type="primary" htmlType="submit" loading={loading}>
+                  保存邮件配置
+                </Button>
+                <Button 
+                  icon={<ExperimentOutlined />} 
+                  onClick={showTestEmailModal}
+                  disabled={!hasBasicConfig}
+                >
+                  发送测试邮件
+                </Button>
+              </Space>
+            </Form.Item>
+          </Form>
+        </Panel>
+      </Collapse>
 
       {/* 测试邮件模态框 */}
       <Modal
@@ -426,20 +524,23 @@ const Settings: React.FC<SettingsProps> = ({ systemName, setSystemName }) => {
           form={testEmailForm}
           layout="vertical"
           onFinish={handleTestEmailSubmit}
+          initialValues={{
+            test_recipients: []
+          }}
         >
           <Alert
             message="测试邮件说明"
-            description="此功能允许您向指定收件人发送测试邮件，用于验证邮件配置是否正确。"
+            description="此功能将使用您配置的邮件模板发送测试邮件，包含真实的过期物品数据（如果有的话），用于验证邮件配置和模板效果。"
             type="info"
             showIcon
             style={{ marginBottom: 16 }}
           />
           
-          <Form.Item
-            name="test_recipients"
-            label="测试收件人"
-            rules={[{ required: true, message: '请选择测试收件人' }]}
-            extra="可选择多个收件人进行测试"
+          <Form.Item 
+            name="test_recipients" 
+            label="收件人邮箱"
+            rules={[{ required: true, message: '请选择收件人邮箱' }]}
+            extra="可选择多个收件人，支持自定义邮箱地址"
           >
             <Select
               mode="tags"

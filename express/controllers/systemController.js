@@ -1,6 +1,7 @@
 const { getPool } = require('../db');
 const nodemailer = require('nodemailer');
 const schedulerService = require('../services/schedulerService');
+const emailService = require('../services/emailService');
 const DatabaseDiagnostic = require('../utils/dbDiagnostic');
 
 // 获取系统名称
@@ -16,6 +17,179 @@ const getSystemName = async (req, res) => {
   } catch (error) {
     console.error('获取系统名称失败:', error);
     res.status(500).json({ error: '获取系统名称失败' });
+  }
+};
+
+// 发送邮件模板测试邮件
+const sendTemplateTestEmail = async (req, res) => {
+  console.log('=== 开始发送邮件模板测试邮件 ===');
+  
+  try {
+    const { test_recipients } = req.body;
+    console.log('请求参数:', { test_recipients });
+    
+    const pool = await getPool();
+    console.log('数据库连接池获取成功');
+    
+    const [rows] = await pool.query('SELECT * FROM email_config ORDER BY id DESC LIMIT 1');
+    console.log('邮件配置查询结果:', rows.length > 0 ? '找到配置' : '未找到配置');
+    
+    if (rows.length === 0) {
+      console.log('模板测试邮件发送失败：未配置邮件设置');
+      return res.status(400).json({ success: false, message: '请先配置邮件设置' });
+    }
+
+    const config = rows[0];
+    
+    // 确定收件人：优先使用自定义收件人，否则使用配置中的默认收件人
+    const recipients = test_recipients || config.recipient_email;
+    if (!recipients) {
+      console.log('模板测试邮件发送失败：未指定收件人');
+      return res.status(400).json({ success: false, message: '请指定收件人邮箱' });
+    }
+    
+    console.log('邮件配置信息:');
+    console.log('- SMTP主机:', config.smtp_host);
+    console.log('- SMTP端口:', config.smtp_port);
+    console.log('- SMTP用户:', config.smtp_user);
+    console.log('- 收件人邮箱:', recipients);
+    console.log('- 是否使用自定义收件人:', !!test_recipients);
+    
+    // 创建邮件传输器
+    console.log('创建邮件传输器...');
+    const transporterConfig = {
+      host: config.smtp_host,
+      port: parseInt(config.smtp_port),
+      secure: parseInt(config.smtp_port) === 465, // 465端口使用SSL
+      auth: {
+        user: config.smtp_user,
+        pass: config.smtp_password
+      }
+    };
+    console.log('传输器配置:', {
+      ...transporterConfig,
+      auth: { ...transporterConfig.auth, pass: '***隐藏***' }
+    });
+    
+    const transporter = nodemailer.createTransport(transporterConfig);
+
+    // 验证SMTP连接
+    console.log('验证SMTP连接...');
+    try {
+      await transporter.verify();
+      console.log('SMTP连接验证成功');
+    } catch (verifyError) {
+      console.error('SMTP连接验证失败:', verifyError);
+      return res.status(500).json({ 
+        success: false, 
+        message: `SMTP连接失败: ${verifyError.message}`,
+        error: process.env.NODE_ENV === 'development' ? verifyError.message : undefined
+      });
+    }
+
+    // 生成模拟的过期物品数据用于测试
+    const mockExpiredItems = `【过期药品】
+1. 阿莫西林胶囊 - 药房A区 (过期时间: ${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toLocaleDateString('zh-CN')})
+2. 布洛芬片 - 药房B区 (过期时间: ${new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toLocaleDateString('zh-CN')})
+
+【过期物资】
+1. 一次性注射器 - 物资库房1 (过期时间: ${new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toLocaleDateString('zh-CN')})
+2. 医用口罩 - 物资库房2 (过期时间: ${new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toLocaleDateString('zh-CN')})`;
+
+    // 使用邮件模板并替换变量
+    const emailTemplate = config.email_template || `尊敬的管理员：
+
+您好！系统检测到以下物资或药品即将过期或已过期，请及时处理：
+
+{EXPIRED_ITEMS}
+
+请登录系统查看详细信息并及时处理。
+
+此邮件由系统自动发送，请勿回复。
+
+系统管理员
+{CURRENT_DATE}`;
+
+    const emailContent = emailTemplate
+      .replace('{EXPIRED_ITEMS}', mockExpiredItems)
+      .replace('{CURRENT_DATE}', new Date().toLocaleDateString('zh-CN'));
+
+    // 发送模板测试邮件
+    console.log('准备发送模板测试邮件...');
+    
+    // 初始化邮件服务
+    const initResult = await emailService.initTransporter({
+      smtp_host: config.smtp_host,
+      smtp_port: parseInt(config.smtp_port),
+      smtp_user: config.smtp_user,
+      smtp_password: config.smtp_password
+    });
+    
+    if (!initResult) {
+      console.error('邮件服务初始化失败');
+      return res.status(500).json({ 
+        success: false, 
+        message: '邮件服务初始化失败'
+      });
+    }
+    
+    // 使用emailService发送邮件
+    const htmlContent = emailContent.replace(/\n/g, '<br>');
+    const subject = config.email_subject || '【系统提醒】物资/药品过期通知';
+    
+    console.log('邮件选项:', {
+      to: recipients,
+      subject: subject,
+      htmlLength: htmlContent.length
+    });
+
+    const sendResult = await emailService.sendEmail(recipients, subject, htmlContent, true);
+    
+    if (!sendResult.success) {
+      throw new Error(sendResult.error);
+    }
+    
+    console.log('邮件发送结果:', sendResult);
+    console.log('=== 模板测试邮件发送成功 ===');
+    
+    res.json({ 
+      success: true, 
+      message: `邮件模板测试发送成功，已发送至：${recipients}`,
+      recipients: recipients
+    });
+  } catch (error) {
+    console.error('=== 发送模板测试邮件失败 ===');
+    console.error('错误类型:', error.constructor.name);
+    console.error('错误消息:', error.message);
+    console.error('错误堆栈:', error.stack);
+    
+    // 根据错误类型提供更具体的错误信息
+    let errorMessage = '发送模板测试邮件失败';
+    if (error.code) {
+      console.error('错误代码:', error.code);
+      switch (error.code) {
+        case 'EAUTH':
+          errorMessage = 'SMTP认证失败，请检查用户名和密码';
+          break;
+        case 'ECONNECTION':
+          errorMessage = '无法连接到SMTP服务器，请检查主机和端口';
+          break;
+        case 'ETIMEDOUT':
+          errorMessage = 'SMTP连接超时，请检查网络连接';
+          break;
+        case 'EENVELOPE':
+          errorMessage = '邮件地址格式错误';
+          break;
+        default:
+          errorMessage = `邮件发送失败: ${error.message}`;
+      }
+    }
+    
+    res.status(500).json({ 
+      success: false, 
+      message: errorMessage,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
@@ -35,11 +209,11 @@ const setSystemName = async (req, res) => {
   }
 };
 
-// 获取邮件配置
-const getEmailConfig = async (req, res) => {
+// 获取SMTP配置
+const getSmtpConfig = async (req, res) => {
   try {
     const pool = await getPool();
-    const [rows] = await pool.query('SELECT * FROM email_config ORDER BY id DESC LIMIT 1');
+    const [rows] = await pool.query('SELECT * FROM smtp_config WHERE is_active = TRUE ORDER BY id DESC LIMIT 1');
     if (rows.length > 0) {
       // 不返回密码字段
       const { smtp_password, ...config } = rows[0];
@@ -47,6 +221,127 @@ const getEmailConfig = async (req, res) => {
     } else {
       res.json({ success: true, data: {} });
     }
+  } catch (error) {
+    console.error('获取SMTP配置失败:', error);
+    res.status(500).json({ success: false, message: '获取SMTP配置失败' });
+  }
+};
+
+// 保存SMTP配置
+const saveSmtpConfig = async (req, res) => {
+  console.log('=== 开始保存SMTP配置 ===');
+  console.log('请求体数据:', JSON.stringify(req.body, null, 2));
+  
+  try {
+    const {
+      smtp_host,
+      smtp_port,
+      smtp_user,
+      smtp_password
+    } = req.body;
+
+    console.log('解析后的SMTP配置参数:');
+    console.log('- SMTP主机:', smtp_host);
+    console.log('- SMTP端口:', smtp_port);
+    console.log('- SMTP用户:', smtp_user);
+    console.log('- SMTP密码:', smtp_password ? '***已设置***' : '未设置');
+
+    // 验证必填字段
+    const missingFields = [];
+    if (!smtp_host) missingFields.push('SMTP主机');
+    if (!smtp_port) missingFields.push('SMTP端口');
+    if (!smtp_user) missingFields.push('SMTP用户名');
+    if (!smtp_password) missingFields.push('SMTP密码');
+
+    if (missingFields.length > 0) {
+      console.log('验证失败，缺少必填字段:', missingFields);
+      return res.status(400).json({ 
+        success: false, 
+        message: `请填写所有必填字段: ${missingFields.join(', ')}`,
+        missingFields: missingFields
+      });
+    }
+
+    console.log('字段验证通过，开始数据库操作...');
+
+    const pool = await getPool();
+    console.log('数据库连接池获取成功');
+    
+    // 检查是否已有配置
+    console.log('检查现有SMTP配置...');
+    const [existing] = await pool.query('SELECT id FROM smtp_config WHERE is_active = TRUE ORDER BY id DESC LIMIT 1');
+    console.log('现有配置查询结果:', existing.length > 0 ? `找到配置ID: ${existing[0].id}` : '未找到现有配置');
+    
+    let result;
+    if (existing.length > 0) {
+      // 更新现有配置
+      console.log('执行更新操作，配置ID:', existing[0].id);
+      result = await pool.query(`
+        UPDATE smtp_config SET 
+        smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_password = ?, updated_at = NOW()
+        WHERE id = ?
+      `, [
+        smtp_host, smtp_port, smtp_user, smtp_password, existing[0].id
+      ]);
+      console.log('更新操作结果:', result[0]);
+    } else {
+      // 插入新配置
+      console.log('执行插入操作...');
+      result = await pool.query(`
+        INSERT INTO smtp_config (
+          smtp_host, smtp_port, smtp_user, smtp_password, is_active, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, TRUE, NOW(), NOW())
+      `, [
+        smtp_host, smtp_port, smtp_user, smtp_password
+      ]);
+      console.log('插入操作结果:', result[0]);
+    }
+
+    console.log('=== SMTP配置保存成功 ===');
+    res.json({ 
+      success: true, 
+      message: 'SMTP配置保存成功',
+      configId: existing.length > 0 ? existing[0].id : result[0].insertId
+    });
+
+  } catch (error) {
+    console.error('=== 保存SMTP配置失败 ===');
+    console.error('错误类型:', error.constructor.name);
+    console.error('错误消息:', error.message);
+    console.error('错误堆栈:', error.stack);
+    
+    res.status(500).json({ 
+      success: false, 
+      message: '保存SMTP配置失败',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// 获取邮件配置
+const getEmailConfig = async (req, res) => {
+  try {
+    const pool = await getPool();
+    
+    // 获取邮件模板配置
+    const [emailRows] = await pool.query('SELECT * FROM email_config ORDER BY id DESC LIMIT 1');
+    
+    // 获取SMTP配置（不返回密码）
+    const [smtpRows] = await pool.query('SELECT smtp_host, smtp_port, smtp_user FROM smtp_config WHERE is_active = 1 ORDER BY id DESC LIMIT 1');
+    
+    let config = {};
+    
+    // 合并邮件模板配置
+    if (emailRows.length > 0) {
+      config = { ...emailRows[0] };
+    }
+    
+    // 合并SMTP配置
+    if (smtpRows.length > 0) {
+      config = { ...config, ...smtpRows[0] };
+    }
+    
+    res.json({ success: true, data: config });
   } catch (error) {
     console.error('获取邮件配置失败:', error);
     res.status(500).json({ success: false, message: '获取邮件配置失败' });
@@ -82,34 +377,26 @@ const saveEmailConfig = async (req, res) => {
   
   try {
     const {
-      smtp_host,
-      smtp_port,
-      smtp_user,
-      smtp_password,
       recipient_email,
       reminder_frequency,
       reminder_time,
+      weekly_day,
+      monthly_day,
       email_subject,
       email_template
     } = req.body;
 
     console.log('解析后的配置参数:');
-    console.log('- SMTP主机:', smtp_host);
-    console.log('- SMTP端口:', smtp_port);
-    console.log('- SMTP用户:', smtp_user);
-    console.log('- SMTP密码:', smtp_password ? '***已设置***' : '未设置');
     console.log('- 收件人邮箱:', recipient_email);
     console.log('- 提醒频率:', reminder_frequency);
     console.log('- 提醒时间:', reminder_time);
+    console.log('- 每周的哪一天:', weekly_day);
+    console.log('- 每月的哪一天:', monthly_day);
     console.log('- 邮件主题:', email_subject);
     console.log('- 邮件模板长度:', email_template ? email_template.length : 0);
 
     // 验证必填字段
     const missingFields = [];
-    if (!smtp_host) missingFields.push('SMTP主机');
-    if (!smtp_port) missingFields.push('SMTP端口');
-    if (!smtp_user) missingFields.push('SMTP用户名');
-    if (!smtp_password) missingFields.push('SMTP密码');
     if (!recipient_email) missingFields.push('收件人邮箱');
 
     if (missingFields.length > 0) {
@@ -137,13 +424,13 @@ const saveEmailConfig = async (req, res) => {
       console.log('执行更新操作，配置ID:', existing[0].id);
       result = await pool.query(`
         UPDATE email_config SET 
-        smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_password = ?,
         recipient_email = ?, reminder_frequency = ?, reminder_time = ?,
+        weekly_day = ?, monthly_day = ?,
         email_subject = ?, email_template = ?, updated_at = NOW()
         WHERE id = ?
       `, [
-        smtp_host, smtp_port, smtp_user, smtp_password,
         recipient_email, reminder_frequency, reminder_time,
+        weekly_day, monthly_day,
         email_subject, email_template, existing[0].id
       ]);
       console.log('更新操作结果:', result[0]);
@@ -152,13 +439,13 @@ const saveEmailConfig = async (req, res) => {
       console.log('执行插入操作...');
       result = await pool.query(`
         INSERT INTO email_config (
-          smtp_host, smtp_port, smtp_user, smtp_password,
           recipient_email, reminder_frequency, reminder_time,
+          weekly_day, monthly_day,
           email_subject, email_template
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `, [
-        smtp_host, smtp_port, smtp_user, smtp_password,
         recipient_email, reminder_frequency, reminder_time,
+        weekly_day, monthly_day,
         email_subject, email_template
       ]);
       console.log('插入操作结果:', result[0]);
@@ -224,98 +511,172 @@ const sendTestEmail = async (req, res) => {
     const pool = await getPool();
     console.log('数据库连接池获取成功');
     
-    const [rows] = await pool.query('SELECT * FROM email_config ORDER BY id DESC LIMIT 1');
-    console.log('邮件配置查询结果:', rows.length > 0 ? '找到配置' : '未找到配置');
+    // 获取邮件模板配置
+    const [emailRows] = await pool.query('SELECT * FROM email_config ORDER BY id DESC LIMIT 1');
+    console.log('邮件模板配置查询结果:', emailRows.length > 0 ? '找到配置' : '未找到配置');
     
-    if (rows.length === 0) {
-      console.log('测试邮件发送失败：未配置邮件设置');
-      return res.status(400).json({ success: false, message: '请先配置邮件设置' });
+    // 获取SMTP配置
+    const [smtpRows] = await pool.query('SELECT * FROM smtp_config WHERE is_active = 1 ORDER BY id DESC LIMIT 1');
+    console.log('SMTP配置查询结果:', smtpRows.length > 0 ? '找到配置' : '未找到配置');
+    
+    if (emailRows.length === 0 || smtpRows.length === 0) {
+      console.log('测试邮件发送失败：配置不完整');
+      return res.status(400).json({ 
+        success: false, 
+        message: '请先完成邮件配置和SMTP配置' 
+      });
     }
 
-    const config = rows[0];
+    const emailConfig = emailRows[0];
+    const smtpConfig = smtpRows[0];
     
     // 确定收件人：优先使用自定义收件人，否则使用配置中的默认收件人
-    const recipients = test_recipients || config.recipient_email;
+    const recipients = test_recipients || emailConfig.recipient_email;
     if (!recipients) {
       console.log('测试邮件发送失败：未指定收件人');
       return res.status(400).json({ success: false, message: '请指定收件人邮箱' });
     }
     
     console.log('邮件配置信息:');
-    console.log('- SMTP主机:', config.smtp_host);
-    console.log('- SMTP端口:', config.smtp_port);
-    console.log('- SMTP用户:', config.smtp_user);
+    console.log('- SMTP主机:', smtpConfig.smtp_host);
+    console.log('- SMTP端口:', smtpConfig.smtp_port);
+    console.log('- SMTP用户:', smtpConfig.smtp_user);
     console.log('- 收件人邮箱:', recipients);
     console.log('- 是否使用自定义收件人:', !!test_recipients);
     
-    // 创建邮件传输器
-    console.log('创建邮件传输器...');
-    const transporterConfig = {
-      host: config.smtp_host,
-      port: parseInt(config.smtp_port),
-      secure: parseInt(config.smtp_port) === 465, // 465端口使用SSL
-      auth: {
-        user: config.smtp_user,
-        pass: config.smtp_password
-      }
-    };
-    console.log('传输器配置:', {
-      ...transporterConfig,
-      auth: { ...transporterConfig.auth, pass: '***隐藏***' }
+    // 初始化邮件服务
+    console.log('初始化邮件服务...');
+    const initResult = await emailService.initTransporter({
+      smtp_host: smtpConfig.smtp_host,
+      smtp_port: parseInt(smtpConfig.smtp_port),
+      smtp_user: smtpConfig.smtp_user,
+      smtp_password: smtpConfig.smtp_password
     });
     
-    const transporter = nodemailer.createTransport(transporterConfig);
-
-    // 验证SMTP连接
-    console.log('验证SMTP连接...');
-    try {
-      await transporter.verify();
-      console.log('SMTP连接验证成功');
-    } catch (verifyError) {
-      console.error('SMTP连接验证失败:', verifyError);
+    console.log('邮件服务配置:', {
+      smtp_host: smtpConfig.smtp_host,
+      smtp_port: parseInt(smtpConfig.smtp_port),
+      smtp_user: smtpConfig.smtp_user,
+      smtp_password: '***隐藏***'
+    });
+    
+    if (!initResult) {
+      console.error('邮件服务初始化失败');
       return res.status(500).json({ 
         success: false, 
-        message: `SMTP连接失败: ${verifyError.message}`,
-        error: process.env.NODE_ENV === 'development' ? verifyError.message : undefined
+        message: '邮件服务初始化失败，请检查SMTP配置'
       });
     }
+    
+    console.log('邮件服务初始化成功');
+
+    // 查询真实的过期药品
+    console.log('查询过期药品...');
+    const [expiredMedicines] = await pool.query(`
+      SELECT medicine_name, storage_location, quantity,
+             DATE_ADD(production_date, INTERVAL validity_period_days DAY) as expiration_date
+      FROM medicines 
+      WHERE DATE_ADD(production_date, INTERVAL validity_period_days DAY) <= CURDATE()
+        AND quantity > 0
+        AND validity_period_days > 0
+      ORDER BY expiration_date
+    `);
+
+    // 查询真实的过期物资
+    console.log('查询过期物资...');
+    const [expiredSupplies] = await pool.query(`
+      SELECT supply_name, storage_location, supply_number,
+             DATE_ADD(production_date, INTERVAL validity_period_days DAY) as expiration_date
+      FROM supplies 
+      WHERE DATE_ADD(production_date, INTERVAL validity_period_days DAY) <= CURDATE()
+        AND supply_number > 0
+        AND validity_period_days > 0
+      ORDER BY expiration_date
+    `);
+
+    console.log('过期药品数量:', expiredMedicines.length);
+    console.log('过期物资数量:', expiredSupplies.length);
+
+    // 构建过期物品列表
+    let expiredItemsList = '';
+    
+    if (expiredMedicines.length === 0 && expiredSupplies.length === 0) {
+      expiredItemsList = '目前没有过期的药品或物资。';
+    } else {
+      if (expiredMedicines.length > 0) {
+        expiredItemsList += `共有${expiredMedicines.length}个药品已经过期。\n\n`;
+        expiredItemsList += '已经过期的药品：\n';
+        expiredMedicines.forEach((item, index) => {
+          // 格式化日期为YYYY-MM-DD
+          const expirationDate = new Date(item.expiration_date);
+          const formattedDate = `${expirationDate.getFullYear()}-${(expirationDate.getMonth() + 1).toString().padStart(2, '0')}-${expirationDate.getDate().toString().padStart(2, '0')}`;
+          
+          expiredItemsList += `${index + 1}.${item.medicine_name}（药品名称），位置：${item.storage_location}，数量：${item.quantity}，到期日期：${formattedDate}\n`;
+        });
+        expiredItemsList += '\n';
+      }
+
+      if (expiredSupplies.length > 0) {
+        expiredItemsList += `共有${expiredSupplies.length}个物资已经过期。\n\n`;
+        expiredItemsList += '已经过期的物资：\n';
+        expiredSupplies.forEach((item, index) => {
+          // 格式化日期为YYYY-MM-DD
+          const expirationDate = new Date(item.expiration_date);
+          const formattedDate = `${expirationDate.getFullYear()}-${(expirationDate.getMonth() + 1).toString().padStart(2, '0')}-${expirationDate.getDate().toString().padStart(2, '0')}`;
+          
+          expiredItemsList += `${index + 1}.${item.supply_name}（物资名称），位置：${item.storage_location}，编号：${item.supply_number}，到期日期：${formattedDate}\n`;
+        });
+      }
+    }
+
+    // 使用邮件模板并替换变量
+    const emailTemplate = emailConfig.email_template || `尊敬的管理员：
+
+您好！系统检测到以下物资或药品即将过期或已过期，请及时处理：
+
+{EXPIRED_ITEMS}
+
+请登录系统查看详细信息并及时处理。
+
+此邮件由系统自动发送，请勿回复。
+
+系统管理员
+{CURRENT_DATE}`;
+
+    // 格式化当前日期为YYYY-MM-DD
+    const today = new Date();
+    const formattedToday = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
+
+    const emailContent = emailTemplate
+      .replace('{EXPIRED_ITEMS}', expiredItemsList)
+      .replace('{CURRENT_DATE}', formattedToday);
 
     // 发送测试邮件
     console.log('准备发送测试邮件...');
-    const mailOptions = {
-      from: config.smtp_user,
-      to: recipients,
-      subject: '【测试邮件】系统邮件功能测试',
-      html: `
-        <h3>邮件功能测试</h3>
-        <p>这是一封测试邮件，用于验证系统邮件发送功能是否正常。</p>
-        <p>如果您收到此邮件，说明邮件配置成功！</p>
-        <hr>
-        <p><strong>测试信息：</strong></p>
-        <ul>
-          <li>发送时间：${new Date().toLocaleString('zh-CN')}</li>
-          <li>收件人：${recipients}</li>
-          <li>测试类型：${test_recipients ? '自定义收件人测试' : '默认收件人测试'}</li>
-        </ul>
-        <hr>
-        <p><small>此邮件由系统自动发送，请勿回复。</small></p>
-      `
-    };
+    const subject = `【测试邮件】${emailConfig.email_subject || '物资/药品过期通知'}`;
+    const htmlContent = emailContent.replace(/\n/g, '<br>');
+    
     console.log('邮件选项:', {
-      from: mailOptions.from,
-      to: mailOptions.to,
-      subject: mailOptions.subject,
-      htmlLength: mailOptions.html.length
+      to: recipients,
+      subject: subject,
+      contentLength: emailContent.length
     });
 
-    const sendResult = await transporter.sendMail(mailOptions);
+    // 使用emailService发送邮件（会自动记录日志）
+    const sendResult = await emailService.sendEmail(recipients, subject, htmlContent, true);
+    
+    if (!sendResult.success) {
+      throw new Error(sendResult.error);
+    }
+    
     console.log('邮件发送结果:', sendResult);
     console.log('=== 测试邮件发送成功 ===');
     
     res.json({ 
       success: true, 
       message: `测试邮件发送成功，已发送至：${recipients}`,
-      recipients: recipients
+      recipients: recipients,
+      expiredItemsCount: expiredMedicines.length + expiredSupplies.length
     });
   } catch (error) {
     console.error('=== 发送测试邮件失败 ===');
@@ -356,106 +717,24 @@ const sendTestEmail = async (req, res) => {
 // 检查过期物资和药品并发送提醒邮件
 const checkAndSendReminder = async () => {
   try {
-    const pool = await getPool();
+    console.log('开始检查过期物资和药品并发送提醒邮件...');
     
-    // 获取邮件配置
-    const [emailConfig] = await pool.query('SELECT * FROM email_config ORDER BY id DESC LIMIT 1');
-    if (emailConfig.length === 0) {
-      console.log('未配置邮件设置，跳过提醒');
-      return;
-    }
-
-    const config = emailConfig[0];
+    // 使用emailService的checkAndSendReminder方法
+    const result = await emailService.checkAndSendReminder();
     
-    // 查询过期的药品
-    const [expiredMedicines] = await pool.query(`
-      SELECT name, storage_location, 
-             DATE_ADD(production_date, INTERVAL shelf_life DAY) as expiration_date
-      FROM medicines 
-      WHERE DATE_ADD(production_date, INTERVAL shelf_life DAY) <= CURDATE()
-      ORDER BY expiration_date
-    `);
-
-    // 查询过期的物资
-    const [expiredSupplies] = await pool.query(`
-      SELECT name, storage_location,
-             DATE_ADD(production_date, INTERVAL shelf_life DAY) as expiration_date
-      FROM supplies 
-      WHERE DATE_ADD(production_date, INTERVAL shelf_life DAY) <= CURDATE()
-      ORDER BY expiration_date
-    `);
-
-    // 如果没有过期物品，不发送邮件
-    if (expiredMedicines.length === 0 && expiredSupplies.length === 0) {
-      console.log('没有过期物品，无需发送提醒邮件');
-      return;
-    }
-
-    // 构建过期物品列表
-    let expiredItemsList = '';
-    
-    if (expiredMedicines.length > 0) {
-      expiredItemsList += '【过期药品】\n';
-      expiredMedicines.forEach((item, index) => {
-        expiredItemsList += `${index + 1}. ${item.name} - ${item.storage_location} (过期时间: ${item.expiration_date})\n`;
-      });
-      expiredItemsList += '\n';
-    }
-
-    if (expiredSupplies.length > 0) {
-      expiredItemsList += '【过期物资】\n';
-      expiredSupplies.forEach((item, index) => {
-        expiredItemsList += `${index + 1}. ${item.name} - ${item.storage_location} (过期时间: ${item.expiration_date})\n`;
-      });
-    }
-
-    // 替换邮件模板中的变量
-    const emailContent = config.email_template
-      .replace('{EXPIRED_ITEMS}', expiredItemsList)
-      .replace('{CURRENT_DATE}', new Date().toLocaleDateString('zh-CN'));
-
-    // 创建邮件传输器
-    const transporter = nodemailer.createTransport({
-      host: config.smtp_host,
-      port: parseInt(config.smtp_port),
-      secure: parseInt(config.smtp_port) === 465,
-      auth: {
-        user: config.smtp_user,
-        pass: config.smtp_password
+    if (result.success) {
+      console.log('过期提醒邮件发送成功:', result.message);
+      if (result.expiredCount) {
+        console.log(`共发现${result.expiredCount}个过期物品`);
       }
-    });
-
-    // 发送提醒邮件
-    const mailOptions = {
-      from: config.smtp_user,
-      to: config.recipient_email,
-      subject: config.email_subject,
-      text: emailContent,
-      html: emailContent.replace(/\n/g, '<br>')
-    };
-
-    await transporter.sendMail(mailOptions);
-    console.log('过期提醒邮件发送成功');
-    
-    // 记录发送日志
-    await pool.query(`
-      INSERT INTO email_logs (recipient, subject, content, status, sent_at)
-      VALUES (?, ?, ?, 'success', NOW())
-    `, [config.recipient_email, config.email_subject, emailContent]);
-
-  } catch (error) {
-    console.error('发送提醒邮件失败:', error);
-    
-    // 记录错误日志
-    try {
-      const pool = await getPool();
-      await pool.query(`
-        INSERT INTO email_logs (recipient, subject, content, status, error_message, sent_at)
-        VALUES (?, ?, ?, 'failed', ?, NOW())
-      `, ['', '过期提醒邮件', '', error.message]);
-    } catch (logError) {
-      console.error('记录邮件日志失败:', logError);
+    } else {
+      console.log('过期提醒邮件发送失败或无需发送:', result.message);
     }
+    
+    return result;
+  } catch (error) {
+    console.error('执行过期提醒任务失败:', error);
+    return { success: false, message: error.message };
   }
 };
 
@@ -485,7 +764,10 @@ module.exports = {
   setSystemName,
   getEmailConfig,
   saveEmailConfig,
+  getSmtpConfig,
+  saveSmtpConfig,
   sendTestEmail,
+  sendTemplateTestEmail,
   checkAndSendReminder,
   databaseDiagnostic
 };

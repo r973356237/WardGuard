@@ -1,7 +1,10 @@
 const mysql = require('mysql2/promise');
 const fs = require('fs').promises;
 const path = require('path');
-require('dotenv').config({ path: '.env.development' });
+
+// 正确加载环境变量文件
+const envPath = path.join(__dirname, '..', '.env.development');
+require('dotenv').config({ path: envPath });
 
 /**
  * 数据库迁移管理器

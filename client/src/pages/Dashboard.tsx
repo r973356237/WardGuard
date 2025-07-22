@@ -6,12 +6,16 @@ import {
   UserOutlined, 
   TeamOutlined, 
   MedicineBoxOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  MailOutlined,
+  ClockCircleOutlined,
+  SettingOutlined
 } from '@ant-design/icons';
 import apiClient from '../config/axios';
 import type { ProgressProps } from 'antd';
 import ShiftCalendar from '../components/ShiftCalendar';
 import { API_ENDPOINTS } from '../config/api';
+import { useNavigate } from 'react-router-dom';
 
 // 延迟函数
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -35,6 +39,13 @@ const fetchWithRetry = async (endpoint: string, maxRetries = 3): Promise<any> =>
   }
 };
 
+// 提醒频率中文映射
+const reminderFrequencyMap: Record<string, string> = {
+  'daily': '每天',
+  'weekly': '每周',
+  'monthly': '每月'
+};
+
 // 定义数据类型接口
 interface ModuleData {
   name: string;
@@ -51,22 +62,54 @@ interface RateData {
   supplyExpireRate: number; // 物资过期比例
 }
 
+interface EmailServiceStatus {
+  configured: boolean;
+  emailConfig: {
+    recipientEmail: string;
+    reminderFrequency: string;
+    weeklyDay?: string;
+    monthlyDay?: number;
+    reminderTime: string | null;
+    lastUpdated: string;
+  } | null;
+  smtpConfigured: boolean;
+  lastEmailSent: string | null;
+  recentEmailStatus: Array<{
+    status: string;
+    sentAt: string;
+  }>;
+}
+
 interface DashboardData {
   modules: ModuleData[];
   alerts: AlertData;
   rates: RateData;
+  emailService?: EmailServiceStatus;
 }
 
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
   // 初始化状态时提供默认值
   const [dashboardData, setDashboardData] = useState<DashboardData>({
     modules: [],
     alerts: { expiredMedicines: 0, expiredSupplies: 0 },
     rates: { medicineExpireRate: 0, supplyExpireRate: 0 },
+    emailService: {
+      configured: false,
+      emailConfig: null,
+      smtpConfigured: false,
+      lastEmailSent: null,
+      recentEmailStatus: []
+    }
   });
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
   const [retryCount, setRetryCount] = useState<number>(0);
+
+  // 跳转到邮件设置页面
+  const goToEmailSettings = () => {
+    navigate('/settings');
+  };
 
   const fetchDashboardData = useCallback(async (isRetry = false) => {
     try {
@@ -219,7 +262,7 @@ const Dashboard: React.FC = () => {
           </Card>
 
           {/* 物资过期情况 */}
-          <Card title="物资过期情况">
+          <Card title="物资过期情况" style={{ marginBottom: '16px' }}>
             <Spin spinning={loading} tip="正在加载数据...">
               <div style={{ padding: '16px' }}>
                 <Row gutter={[16, 0]}>
@@ -251,6 +294,96 @@ const Dashboard: React.FC = () => {
                       )}
                     </div>
                   </Col>
+                </Row>
+              </div>
+            </Spin>
+          </Card>
+          
+          {/* 邮件服务状态 */}
+          <Card title="邮件服务状态" extra={<SettingOutlined onClick={goToEmailSettings} style={{ cursor: 'pointer' }} />}>
+            <Spin spinning={loading} tip="正在加载数据...">
+              <div style={{ padding: '16px' }}>
+                <Row gutter={[16, 16]}>
+                  <Col span={24}>
+                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px', color: dashboardData.emailService?.configured ? '#52c41a' : '#ff4d4f' }}>
+                      <MailOutlined style={{ marginRight: '8px', fontSize: '18px' }} />
+                      <span style={{ fontSize: '16px' }}>
+                        {dashboardData.emailService?.configured 
+                          ? '邮件服务已配置并正常运行' 
+                          : '邮件服务未配置或配置不完整'}
+                      </span>
+                    </div>
+                  </Col>
+                  
+                  {dashboardData.emailService?.emailConfig && (
+                    <>
+                      <Col span={12}>
+                        <Statistic 
+                          title="收件人设置" 
+                          value={dashboardData.emailService.emailConfig.recipientEmail || '未设置'} 
+                          valueStyle={{ fontSize: '14px' }}
+                        />
+                      </Col>
+                      <Col span={12}>
+                        <Statistic 
+                          title="提醒频率" 
+                          value={
+                            (() => {
+                              const frequency = dashboardData.emailService.emailConfig.reminderFrequency;
+                              if (!frequency) return '未设置';
+                              
+                              const frequencyText = reminderFrequencyMap[frequency] || frequency;
+                              
+                              if (frequency === 'weekly' && dashboardData.emailService.emailConfig.weeklyDay) {
+                                const weekDayMap: Record<string, string> = {
+                                  '0': '星期日',
+                                  '1': '星期一',
+                                  '2': '星期二',
+                                  '3': '星期三',
+                                  '4': '星期四',
+                                  '5': '星期五',
+                                  '6': '星期六'
+                                };
+                                return `${frequencyText}（${weekDayMap[dashboardData.emailService.emailConfig.weeklyDay] || dashboardData.emailService.emailConfig.weeklyDay}）`;
+                              }
+                              
+                              if (frequency === 'monthly' && dashboardData.emailService.emailConfig.monthlyDay) {
+                                return `${frequencyText}（${dashboardData.emailService.emailConfig.monthlyDay}日）`;
+                              }
+                              
+                              return frequencyText;
+                            })()
+                          }
+                          prefix={<ClockCircleOutlined />}
+                          valueStyle={{ fontSize: '14px' }}
+                        />
+                      </Col>
+                      <Col span={12}>
+                        <Statistic 
+                          title="提醒时间" 
+                          value={dashboardData.emailService.emailConfig.reminderTime || '未设置'}
+                          valueStyle={{ fontSize: '14px' }}
+                        />
+                      </Col>
+                      <Col span={12}>
+                        <Statistic 
+                          title="最近发送" 
+                          value={dashboardData.emailService.lastEmailSent 
+                            ? new Date(dashboardData.emailService.lastEmailSent).toLocaleString('zh-CN') 
+                            : '尚未发送'}
+                          valueStyle={{ fontSize: '14px' }}
+                        />
+                      </Col>
+                    </>
+                  )}
+                  
+                  {!dashboardData.emailService?.configured && (
+                    <Col span={24}>
+                      <div style={{ color: '#1890ff', cursor: 'pointer', textAlign: 'center' }}>
+                        <Button type="primary" icon={<SettingOutlined />} onClick={goToEmailSettings}>配置邮件服务</Button>
+                      </div>
+                    </Col>
+                  )}
                 </Row>
               </div>
             </Spin>

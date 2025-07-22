@@ -6,6 +6,7 @@ import LoginPage from './pages/Login';
 import RegisterPage from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
+import UserOperationRecords from './pages/UserOperationRecords';
 import Employees from './pages/Employees';
 import Medicines from './pages/Medicines';
 import Supplies from './pages/Supplies';
@@ -24,6 +25,7 @@ const MainLayout: React.FC<{ systemName: string }> = ({ systemName }) => {
   const routeTitles: { [key: string]: string } = {
     '/': '主页',
     '/users': '用户管理',
+    '/user-operation-records': '用户操作记录',
     '/employees': '员工管理',
     '/medicines': '药品管理',
     '/medical-examinations': '体检管理',
@@ -210,6 +212,7 @@ const App: React.FC = () => {
         >
           <Route index element={<Dashboard />} />
           <Route path="users" element={<Users />} />
+          <Route path="user-operation-records/:userId?" element={<UserOperationRecords />} />
           <Route path="employees" element={<Employees />} />
           <Route path="medicines" element={<Medicines />} />
           <Route path="supplies" element={<Supplies />} />

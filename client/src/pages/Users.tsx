@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Form, Input, Button, Space, Modal, Select, Popconfirm, Row, Col, message, Tag } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
-import apiClient from '../config/axios';
+import { Table, Button, Modal, Form, Input, Select, message, Card, Space, Tag, Popconfirm, Row, Col } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, HistoryOutlined } from '@ant-design/icons';
 import { API_ENDPOINTS } from '../config/api';
+import ApiClient from '../utils/api_client';
+import { useNavigate } from 'react-router-dom';
+import type { ColumnsType } from 'antd/es/table';
+import { ApiResponse } from '../utils/api_client';
 
 type User = {
   id: number;
@@ -17,23 +19,23 @@ type User = {
 };
 
 const Users: React.FC = () => {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // 模态框状态
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [modalType, setModalType] = useState<'add' | 'edit'>('add');
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [form] = Form.useForm();
+  // 移除实例化
 
   // 获取用户数据
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get(API_ENDPOINTS.USERS);
-      if (response.data.success) {
-        setUsers(response.data.data);
+      const response = await ApiClient.get<User[]>(API_ENDPOINTS.USERS);
+      if (response.success) {
+        setUsers(response.data || []);
       } else {
         message.error('获取用户列表失败');
       }
@@ -65,11 +67,16 @@ const Users: React.FC = () => {
     setIsModalVisible(true);
   };
 
+  // 查看用户操作记录
+  const handleViewOperationRecords = (userId: number) => {
+    navigate(`/user-operation-records/${userId}`);
+  };
+
   // 删除用户
   const handleDeleteUser = async (id: number) => {
     try {
-      const response = await apiClient.delete(`${API_ENDPOINTS.USERS}/${id}`);
-      if (response.data.success) {
+      const response = await ApiClient.delete<null>(`${API_ENDPOINTS.USERS}/${id}`);
+      if (response.success) {
         message.success('删除成功');
         fetchUsers();
       } else {
@@ -89,12 +96,12 @@ const Users: React.FC = () => {
 
       let response;
       if (modalType === 'add') {
-        response = await apiClient.post(API_ENDPOINTS.USERS, values);
+        response = await ApiClient.post<User>(API_ENDPOINTS.USERS, values);
       } else {
-        response = await apiClient.put(`${API_ENDPOINTS.USERS}/${editingUser?.id}`, values);
+        response = await ApiClient.put<User>(`${API_ENDPOINTS.USERS}/${editingUser?.id}`, values);
       }
 
-      if (response.data.success) {
+      if (response.success) {
         message.success(modalType === 'add' ? '添加成功' : '更新成功');
         setIsModalVisible(false);
         fetchUsers();
@@ -159,6 +166,14 @@ const Users: React.FC = () => {
             onClick={() => handleEditUser(record)}
           >
             编辑
+          </Button>
+          <Button 
+            type="default" 
+            size="small" 
+            icon={<HistoryOutlined />}
+            onClick={() => handleViewOperationRecords(record.id)}
+          >
+            操作记录
           </Button>
           <Popconfirm
             title="确定要删除这个用户吗？"

@@ -192,11 +192,13 @@ const Medicines: React.FC = () => {
     // 有效期范围筛选
     if (expiration_start || expiration_end) {
       filtered = filtered.filter(med => {
+        // 有效期为0的药品视为永久有效，不应该出现在过期筛选中
+        if (med.validity_period_days === 0) return false;
         if (!med.production_date || med.validity_period_days === undefined) return false;
         const productionDate = new Date(med.production_date);
         if (isNaN(productionDate.getTime())) return false;
         const validityDays = Number(med.validity_period_days);
-        if (isNaN(validityDays) || validityDays <= 0) return false;
+        if (isNaN(validityDays) || validityDays < 0) return false;
         const expirationDate = new Date(productionDate);
         expirationDate.setDate(productionDate.getDate() + validityDays);
         const expDateStr = expirationDate.toISOString().split('T')[0];
@@ -290,7 +292,9 @@ const Medicines: React.FC = () => {
         const productionDate = new Date(record.production_date);
         if (isNaN(productionDate.getTime())) return text;
         const validityDays = Number(record.validity_period_days);
-        if (isNaN(validityDays) || validityDays <= 0) return text;
+        // 有效期为0视为永久有效
+        if (validityDays === 0) return text;
+        if (isNaN(validityDays) || validityDays < 0) return text;
         const expirationDate = new Date(productionDate);
         expirationDate.setDate(productionDate.getDate() + validityDays);
         const isExpired = expirationDate < new Date();
@@ -331,13 +335,18 @@ const Medicines: React.FC = () => {
       dataIndex: 'production_date', 
       key: 'production_date', 
       render: (date: string | null, record: Medicine) => {
-        const displayDate = date ? new Date(date).toLocaleDateString() : '-';
+        // 生产日期为0或null时显示为'-'
+        if (!date || date === '0' || date === '0000-00-00') return '-';
+        const displayDate = new Date(date).toLocaleDateString();
+        
         // 检查是否过期
         if (!record.production_date || record.validity_period_days === undefined) return displayDate;
         const productionDate = new Date(record.production_date);
         if (isNaN(productionDate.getTime())) return displayDate;
         const validityDays = Number(record.validity_period_days);
-        if (isNaN(validityDays) || validityDays <= 0) return displayDate;
+        if (isNaN(validityDays) || validityDays < 0) return displayDate;
+        // 有效期为0视为永久有效
+        if (validityDays === 0) return displayDate;
         const expirationDate = new Date(productionDate);
         expirationDate.setDate(productionDate.getDate() + validityDays);
         const isExpired = expirationDate < new Date();
@@ -358,12 +367,15 @@ const Medicines: React.FC = () => {
       align: 'center',
       sorter: (a, b) => a.validity_period_days - b.validity_period_days,
       render: (text: number, record: Medicine) => {
+        // 有效期为0视为永久有效，显示为"-"
+        if (text === 0) return '-';
+        
         // 检查是否过期
         if (!record.production_date || record.validity_period_days === undefined) return text;
         const productionDate = new Date(record.production_date);
         if (isNaN(productionDate.getTime())) return text;
         const validityDays = Number(record.validity_period_days);
-        if (isNaN(validityDays) || validityDays <= 0) return text;
+        if (isNaN(validityDays) || validityDays < 0) return text;
         const expirationDate = new Date(productionDate);
         expirationDate.setDate(productionDate.getDate() + validityDays);
         const isExpired = expirationDate < new Date();
@@ -383,7 +395,9 @@ const Medicines: React.FC = () => {
         const productionDate = new Date(record.production_date);
         if (isNaN(productionDate.getTime())) return '无效日期';
         const validityDays = Number(record.validity_period_days);
-        if (isNaN(validityDays) || validityDays <= 0) return '无效天数';
+        // 有效期为0视为永久有效
+        if (validityDays === 0) return '-';
+        if (isNaN(validityDays) || validityDays < 0) return '无效天数';
         const expirationDate = new Date(productionDate);
         expirationDate.setDate(productionDate.getDate() + validityDays);
         const isExpired = expirationDate < new Date();
@@ -397,11 +411,13 @@ const Medicines: React.FC = () => {
       align: 'center',
       sorter: (a, b) => {
         const getExpirationTimestamp = (med: Medicine) => {
+          // 有效期为0视为永久有效，排序时应该放在最后（返回一个很大的值）
+          if (med.validity_period_days === 0) return Number.MAX_SAFE_INTEGER;
           if (!med.production_date || med.validity_period_days === undefined) return 0;
           const productionDate = new Date(med.production_date);
           if (isNaN(productionDate.getTime())) return 0;
           const validityDays = Number(med.validity_period_days);
-          if (isNaN(validityDays) || validityDays <= 0) return 0;
+          if (isNaN(validityDays) || validityDays < 0) return 0;
           const expirationDate = new Date(productionDate);
           expirationDate.setDate(productionDate.getDate() + validityDays);
           return expirationDate.getTime();
@@ -421,7 +437,9 @@ const Medicines: React.FC = () => {
         const productionDate = new Date(record.production_date);
         if (isNaN(productionDate.getTime())) return text;
         const validityDays = Number(record.validity_period_days);
-        if (isNaN(validityDays) || validityDays <= 0) return text;
+        // 有效期为0视为永久有效
+        if (validityDays === 0) return text;
+        if (isNaN(validityDays) || validityDays < 0) return text;
         const expirationDate = new Date(productionDate);
         expirationDate.setDate(productionDate.getDate() + validityDays);
         const isExpired = expirationDate < new Date();

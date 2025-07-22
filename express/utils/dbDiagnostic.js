@@ -56,7 +56,7 @@ class DatabaseDiagnostic {
       
       console.log('✓ email_config 表存在');
       
-      // 检查表字段
+      // 检查 email_config 表字段
       const [emailConfigColumns] = await pool.query(`
         SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT, COLUMN_COMMENT
         FROM information_schema.COLUMNS 
@@ -68,6 +68,33 @@ class DatabaseDiagnostic {
       emailConfigColumns.forEach(col => {
         console.log(`  - ${col.COLUMN_NAME}: ${col.DATA_TYPE} (${col.IS_NULLABLE === 'YES' ? '可空' : '非空'}) - ${col.COLUMN_COMMENT}`);
       });
+      
+      // 检查 smtp_config 表
+      console.log('检查 smtp_config 表...');
+      const [smtpConfigTables] = await pool.query(`
+        SELECT TABLE_NAME, TABLE_COMMENT 
+        FROM information_schema.TABLES 
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'smtp_config'
+      `);
+      
+      if (smtpConfigTables.length === 0) {
+        console.warn('⚠ smtp_config 表不存在');
+      } else {
+        console.log('✓ smtp_config 表存在');
+        
+        // 检查 smtp_config 表字段
+        const [smtpConfigColumns] = await pool.query(`
+          SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT, COLUMN_COMMENT
+          FROM information_schema.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'smtp_config'
+          ORDER BY ORDINAL_POSITION
+        `);
+        
+        console.log('smtp_config 表字段:');
+        smtpConfigColumns.forEach(col => {
+          console.log(`  - ${col.COLUMN_NAME}: ${col.DATA_TYPE} (${col.IS_NULLABLE === 'YES' ? '可空' : '非空'}) - ${col.COLUMN_COMMENT}`);
+        });
+      }
       
       // 检查 email_logs 表
       console.log('检查 email_logs 表...');
@@ -83,14 +110,24 @@ class DatabaseDiagnostic {
         console.log('✓ email_logs 表存在');
       }
       
+      // 定义一个变量来存储 smtp_config 表的列信息
+      let smtpColumns = [];
+      if (smtpConfigTables.length > 0 && typeof smtpConfigColumns !== 'undefined') {
+        smtpColumns = smtpConfigColumns;
+      }
+
       return { 
         success: true, 
         message: '邮件表结构检查完成',
         tables: {
           email_config: emailConfigTables.length > 0,
+          smtp_config: smtpConfigTables.length > 0,
           email_logs: emailLogsTables.length > 0
         },
-        columns: emailConfigColumns
+        columns: {
+          email_config: emailConfigColumns,
+          smtp_config: smtpColumns
+        }
       };
       
     } catch (error) {
@@ -112,26 +149,52 @@ class DatabaseDiagnostic {
       console.log('=== 邮件配置数据诊断 ===');
       const pool = await getPool();
       
-      const [configs] = await pool.query('SELECT id, smtp_host, smtp_port, smtp_user, recipient_email, created_at, updated_at FROM email_config ORDER BY id DESC');
+      // 检查email_config表
+      const [emailConfigs] = await pool.query('SELECT id, recipient_email, reminder_frequency, reminder_time, created_at, updated_at FROM email_config ORDER BY id DESC');
       
-      if (configs.length === 0) {
+      // 检查smtp_config表
+      const [smtpConfigs] = await pool.query('SELECT id, smtp_host, smtp_port, smtp_user, is_active, created_at, updated_at FROM smtp_config WHERE is_active = TRUE ORDER BY id DESC');
+      
+      if (emailConfigs.length === 0 && smtpConfigs.length === 0) {
         console.log('✓ 数据库中暂无邮件配置');
-        return { success: true, message: '暂无邮件配置', configs: [] };
+        return { success: true, message: '暂无邮件配置', emailConfigs: [], smtpConfigs: [] };
       }
       
-      console.log(`✓ 找到 ${configs.length} 条邮件配置:`);
-      configs.forEach((config, index) => {
-        console.log(`  配置 ${index + 1}:`);
-        console.log(`    - ID: ${config.id}`);
-        console.log(`    - SMTP主机: ${config.smtp_host}`);
-        console.log(`    - SMTP端口: ${config.smtp_port}`);
-        console.log(`    - SMTP用户: ${config.smtp_user}`);
-        console.log(`    - 收件人: ${config.recipient_email}`);
-        console.log(`    - 创建时间: ${config.created_at}`);
-        console.log(`    - 更新时间: ${config.updated_at}`);
-      });
+      if (emailConfigs.length > 0) {
+        console.log(`✓ 找到 ${emailConfigs.length} 条邮件提醒配置:`);
+        emailConfigs.forEach((config, index) => {
+          console.log(`  邮件提醒配置 ${index + 1}:`);
+          console.log(`    - ID: ${config.id}`);
+          console.log(`    - 收件人: ${config.recipient_email}`);
+          console.log(`    - 提醒频率: ${config.reminder_frequency}`);
+          console.log(`    - 提醒时间: ${config.reminder_time}`);
+          console.log(`    - 创建时间: ${config.created_at}`);
+          console.log(`    - 更新时间: ${config.updated_at}`);
+        });
+      }
       
-      return { success: true, message: '邮件配置检查完成', configs };
+      if (smtpConfigs.length > 0) {
+        console.log(`✓ 找到 ${smtpConfigs.length} 条SMTP配置:`);
+        smtpConfigs.forEach((config, index) => {
+          console.log(`  SMTP配置 ${index + 1}:`);
+          console.log(`    - ID: ${config.id}`);
+          console.log(`    - SMTP主机: ${config.smtp_host}`);
+          console.log(`    - SMTP端口: ${config.smtp_port}`);
+          console.log(`    - SMTP用户: ${config.smtp_user}`);
+          console.log(`    - 是否启用: ${config.is_active ? '是' : '否'}`);
+          console.log(`    - 创建时间: ${config.created_at}`);
+          console.log(`    - 更新时间: ${config.updated_at}`);
+        });
+      }
+      
+      return { 
+        success: true, 
+        message: '邮件配置检查完成', 
+        configs: {
+          email: emailConfigs,
+          smtp: smtpConfigs
+        }
+      };
       
     } catch (error) {
       console.error('✗ 邮件配置检查失败:', error);

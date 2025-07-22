@@ -1,4 +1,5 @@
 const { getPool } = require('../db');
+const emailService = require('../services/emailService');
 
 /**
  * 获取仪表盘统计数据
@@ -22,7 +23,10 @@ exports.getDashboardStats = async (req, res) => {
       [employeeCount], 
       [medicineStats],
       [examinationCount],
-      [supplyStats]
+      [supplyStats],
+      emailConfigResult,
+      smtpConfigResult,
+      emailLogsResult
     ] = await Promise.all([
       // 用户总数
       pool.execute('SELECT COUNT(*) as count FROM users'),
@@ -35,7 +39,7 @@ exports.getDashboardStats = async (req, res) => {
         SELECT 
           COUNT(*) as total_count,
           SUM(CASE 
-            WHEN expiration_date IS NOT NULL AND expiration_date < NOW() THEN 1
+            WHEN expiration_date IS NOT NULL AND expiration_date < NOW() AND validity_period_days > 0 THEN 1
             ELSE 0
           END) as expired_count
         FROM medicines
@@ -49,11 +53,20 @@ exports.getDashboardStats = async (req, res) => {
         SELECT 
           COUNT(*) as total_count,
           SUM(CASE 
-            WHEN expiration_date IS NOT NULL AND expiration_date < NOW() THEN 1
+            WHEN expiration_date IS NOT NULL AND expiration_date < NOW() AND validity_period_days > 0 THEN 1
             ELSE 0
           END) as expired_count
         FROM supplies
-      `)
+      `),
+      
+      // 邮件提醒配置
+      pool.execute('SELECT id, recipient_email, reminder_frequency, reminder_time, weekly_day, monthly_day, updated_at FROM email_config LIMIT 1'),
+      
+      // SMTP配置
+      pool.execute('SELECT id, smtp_host, smtp_port, smtp_user, is_active, updated_at FROM smtp_config WHERE is_active = TRUE LIMIT 1'),
+      
+      // 最近邮件发送记录
+      pool.execute('SELECT status, sent_at FROM email_logs ORDER BY sent_at DESC LIMIT 5')
     ]);
 
     // 提取统计数据
@@ -64,11 +77,37 @@ exports.getDashboardStats = async (req, res) => {
     const examinationTotal = examinationCount[0]?.count || 0;
     const supplyTotal = supplyStats[0]?.total_count || 0;
     const supplyExpired = supplyStats[0]?.expired_count || 0;
+    
+    // 处理邮件服务状态信息
+    const emailConfigRows = emailConfigResult[0] || [];
+    const smtpConfigRows = smtpConfigResult[0] || [];
+    const emailLogsRows = emailLogsResult[0] || [];
+    
+    const emailConfig = emailConfigRows[0] || null;
+    const smtpConfig = smtpConfigRows[0] || null;
+    const recentEmailLogs = emailLogsRows || [];
 
     // 计算过期比例
     const medicineExpireRate = medicineTotal > 0 ? (medicineExpired / medicineTotal) * 100 : 0;
     const supplyExpireRate = supplyTotal > 0 ? (supplyExpired / supplyTotal) * 100 : 0;
 
+    // 确定邮件服务状态
+    const emailServiceStatus = {
+      configured: !!(emailConfig && smtpConfig),
+      emailConfig: emailConfig ? {
+        recipientEmail: emailConfig.recipient_email,
+        reminderFrequency: emailConfig.reminder_frequency,
+        weeklyDay: emailConfig.weekly_day,
+        monthlyDay: emailConfig.monthly_day ? parseInt(emailConfig.monthly_day) : null,
+        reminderTime: emailConfig.reminder_time ? emailConfig.reminder_time.toString() : null,
+        lastUpdated: emailConfig.updated_at
+      } : null,
+      smtpConfigured: !!smtpConfig,
+      lastEmailSent: recentEmailLogs.length > 0 ? recentEmailLogs[0].sent_at : null,
+      recentEmailStatus: recentEmailLogs.length > 0 ? 
+        recentEmailLogs.map(log => ({ status: log.status, sentAt: log.sent_at })) : []
+    };
+    
     // 构建响应数据
     const dashboardData = {
       modules: [
@@ -85,7 +124,8 @@ exports.getDashboardStats = async (req, res) => {
       rates: {
         medicineExpireRate: Number(medicineExpireRate.toFixed(1)),
         supplyExpireRate: Number(supplyExpireRate.toFixed(1))
-      }
+      },
+      emailService: emailServiceStatus
     };
 
     console.log('仪表盘统计数据获取成功:', {
@@ -93,7 +133,8 @@ exports.getDashboardStats = async (req, res) => {
       员工: employeeTotal,
       药品: `${medicineTotal}(${medicineExpired}过期)`,
       体检记录: examinationTotal,
-      物资: `${supplyTotal}(${supplyExpired}过期)`
+      物资: `${supplyTotal}(${supplyExpired}过期)`,
+      邮件服务: emailServiceStatus.configured ? '已配置' : '未配置'
     });
 
     res.json({

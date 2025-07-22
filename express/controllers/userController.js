@@ -2,6 +2,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { getPool } = require('../db');
 const config = require('../config');
+const { addOperationRecord } = require('./operationRecordController');
 
 // 从配置中获取JWT密钥
 const JWT_SECRET = config.getJWTSecret();
@@ -38,6 +39,22 @@ exports.register = async (req, res) => {
         'INSERT INTO users (username, name, password, email, role) VALUES (?, ?, ?, ?, ?)',
         [username, name, hashedPassword, email, role || 'user'] // 默认角色改为user
       );
+      
+    // 添加操作记录
+    const operationDetails = {
+      username,
+      name,
+      email,
+      role: role || 'user'
+    };
+    await addOperationRecord(
+      result.insertId, // 用户自己的ID作为操作者
+      'add',
+      'user',
+      result.insertId,
+      name,
+      operationDetails
+    );
 
     console.log('用户注册成功:', { id: result.insertId, username, name });
     res.status(201).json({
@@ -183,6 +200,23 @@ exports.createUser = async (req, res) => {
       [username, name, hashedPassword, email, role || 'user', status || 'active']
     );
 
+    // 添加操作记录
+    const operationDetails = {
+      username,
+      name,
+      email,
+      role: role || 'user',
+      status: status || 'active'
+    };
+    await addOperationRecord(
+      req.user.userId, // 当前登录用户ID作为操作者
+      'add',
+      'user',
+      result.insertId,
+      name,
+      operationDetails
+    );
+
     console.log('用户创建成功:', { id: result.insertId, username, name });
     res.status(201).json({
       success: true,
@@ -260,6 +294,24 @@ exports.updateUser = async (req, res) => {
       return res.status(404).json({ success: false, message: '用户不存在或更新失败' });
     }
 
+    // 添加操作记录
+    const operationDetails = {
+      username,
+      name,
+      email,
+      role: role || 'user',
+      status: status || 'active',
+      password_changed: password && password.trim() !== ''
+    };
+    await addOperationRecord(
+      req.user.userId, // 当前登录用户ID作为操作者
+      'update',
+      'user',
+      id,
+      name,
+      operationDetails
+    );
+
     console.log('用户更新成功:', { id, username, name });
     res.json({
       success: true,
@@ -305,6 +357,25 @@ exports.deleteUser = async (req, res) => {
       console.log('删除用户失败，没有行被影响:', id);
       return res.status(404).json({ success: false, message: '用户不存在或删除失败' });
     }
+
+    // 获取被删除用户的信息用于记录
+    const deletedUser = existingUsers[0];
+    
+    // 添加操作记录
+    const operationDetails = {
+      username: deletedUser.username,
+      name: deletedUser.name,
+      email: deletedUser.email,
+      role: deletedUser.role
+    };
+    await addOperationRecord(
+      req.user.userId, // 当前登录用户ID作为操作者
+      'delete',
+      'user',
+      id,
+      deletedUser.name,
+      operationDetails
+    );
 
     console.log('用户删除成功:', id);
     res.json({

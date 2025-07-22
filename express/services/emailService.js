@@ -9,7 +9,7 @@ class EmailService {
   // 初始化邮件传输器
   async initTransporter(config) {
     try {
-      this.transporter = nodemailer.createTransporter({
+      this.transporter = nodemailer.createTransport({
         host: config.smtp_host,
         port: config.smtp_port,
         secure: config.smtp_port === 465, // true for 465, false for other ports
@@ -78,20 +78,20 @@ class EmailService {
       const pool = await getPool();
       const today = new Date().toISOString().split('T')[0];
       
-      // 查询过期物资
+      // 查询过期物资，排除有效期为0的物资
       const expiredSuppliesQuery = `
-        SELECT s.name, s.expiry_date, s.quantity, s.unit, 'supplies' as type
+        SELECT s.supply_name as name, DATE_ADD(s.production_date, INTERVAL s.validity_period_days DAY) as expiry_date, s.supply_number as quantity, '个' as unit, 'supplies' as type
         FROM supplies s
-        WHERE s.expiry_date <= ? AND s.quantity > 0
-        ORDER BY s.expiry_date ASC
+        WHERE DATE_ADD(s.production_date, INTERVAL s.validity_period_days DAY) <= ? AND s.supply_number > 0 AND s.validity_period_days > 0
+        ORDER BY expiry_date ASC
       `;
       
       // 查询过期药品
       const expiredMedicinesQuery = `
-        SELECT m.name, m.expiry_date, m.quantity, m.unit, 'medicines' as type
+        SELECT m.medicine_name as name, DATE_ADD(m.production_date, INTERVAL m.validity_period_days DAY) as expiry_date, m.quantity, '盒' as unit, 'medicines' as type
         FROM medicines m
-        WHERE m.expiry_date <= ? AND m.quantity > 0
-        ORDER BY m.expiry_date ASC
+        WHERE DATE_ADD(m.production_date, INTERVAL m.validity_period_days DAY) <= ? AND m.quantity > 0 AND m.validity_period_days > 0
+        ORDER BY expiry_date ASC
       `;
 
       const [expiredSupplies] = await pool.query(expiredSuppliesQuery, [today]);
@@ -203,13 +203,24 @@ class EmailService {
     try {
       const pool = await getPool();
       // 获取邮件配置
-      const [configRows] = await pool.query('SELECT * FROM email_config LIMIT 1');
-      if (!configRows || configRows.length === 0) {
+      const [emailConfigRows] = await pool.query('SELECT * FROM email_config LIMIT 1');
+      if (!emailConfigRows || emailConfigRows.length === 0) {
         console.log('未配置邮件设置，跳过提醒');
         return { success: false, message: '未配置邮件设置' };
       }
 
-      const config = configRows[0];
+      // 获取SMTP配置
+      const [smtpConfigRows] = await pool.query('SELECT * FROM smtp_config WHERE is_active = TRUE ORDER BY id DESC LIMIT 1');
+      if (!smtpConfigRows || smtpConfigRows.length === 0) {
+        console.log('未配置SMTP设置，跳过提醒');
+        return { success: false, message: '未配置SMTP设置' };
+      }
+
+      // 合并配置
+      const config = {
+        ...emailConfigRows[0],
+        ...smtpConfigRows[0]
+      };
       
       // 初始化邮件传输器
       const initResult = await this.initTransporter(config);
