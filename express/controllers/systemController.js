@@ -103,7 +103,7 @@ const sendTemplateTestEmail = async (req, res) => {
 
 {EXPIRED_ITEMS}
 
-请登录系统查看详细信息并及时处理。
+请登录系统查看详细信息并及时处理过期物资和药品，确保库存管理的准确性。
 
 此邮件由系统自动发送，请勿回复。
 
@@ -611,7 +611,7 @@ const sendTestEmail = async (req, res) => {
           const expirationDate = new Date(item.expiration_date);
           const formattedDate = `${expirationDate.getFullYear()}-${(expirationDate.getMonth() + 1).toString().padStart(2, '0')}-${expirationDate.getDate().toString().padStart(2, '0')}`;
           
-          expiredItemsList += `${index + 1}.${item.medicine_name}（药品名称），位置：${item.storage_location}，数量：${item.quantity}，到期日期：${formattedDate}\n`;
+          expiredItemsList += `${index + 1}.${item.medicine_name}，位置：${item.storage_location}，数量：${item.quantity}，到期日期：${formattedDate}\n`;
         });
         expiredItemsList += '\n';
       }
@@ -624,7 +624,7 @@ const sendTestEmail = async (req, res) => {
           const expirationDate = new Date(item.expiration_date);
           const formattedDate = `${expirationDate.getFullYear()}-${(expirationDate.getMonth() + 1).toString().padStart(2, '0')}-${expirationDate.getDate().toString().padStart(2, '0')}`;
           
-          expiredItemsList += `${index + 1}.${item.supply_name}（物资名称），位置：${item.storage_location}，编号：${item.supply_number}，到期日期：${formattedDate}\n`;
+          expiredItemsList += `${index + 1}.${item.supply_name}，位置：${item.storage_location}，编号：${item.supply_number}，到期日期：${formattedDate}\n`;
         });
       }
     }
@@ -636,7 +636,7 @@ const sendTestEmail = async (req, res) => {
 
 {EXPIRED_ITEMS}
 
-请登录系统查看详细信息并及时处理。
+请登录系统查看详细信息并及时处理过期物资和药品，确保库存管理的准确性。
 
 此邮件由系统自动发送，请勿回复。
 

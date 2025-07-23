@@ -132,7 +132,7 @@ const Settings: React.FC<SettingsProps> = ({ systemName, setSystemName }) => {
 
 {EXPIRED_ITEMS}
 
-请登录系统查看详细信息并及时处理。
+请登录系统查看详细信息并及时处理过期物资和药品，确保库存管理的准确性。
 
 此邮件由系统自动发送，请勿回复。
 
