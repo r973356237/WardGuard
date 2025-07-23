@@ -20,8 +20,10 @@ import {
   ExperimentOutlined,
   CaretRightOutlined,
   UserOutlined,
-  ClockCircleOutlined
+  ClockCircleOutlined,
+  KeyOutlined
 } from '@ant-design/icons';
+import PermissionSettings from '../components/PermissionSettings';
 import dayjs from 'dayjs';
 import apiClient from '../config/axios';
 import { API_ENDPOINTS } from '../config/api';
@@ -589,6 +591,16 @@ const Settings: React.FC<SettingsProps> = ({ systemName, setSystemName }) => {
         </span>
       ),
       children: emailSettingsTab,
+    },
+    {
+      key: 'permissions',
+      label: (
+        <span>
+          <KeyOutlined />
+          权限设置
+        </span>
+      ),
+      children: <PermissionSettings />,
     },
     {
       key: 'system',

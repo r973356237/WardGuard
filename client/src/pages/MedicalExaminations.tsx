@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Form, Input, DatePicker, Button, Space, Modal, Select, Popconfirm, Row, Col, message, Drawer } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, HistoryOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
 import apiClient from '../config/axios';
 import moment from 'moment';
 import { API_ENDPOINTS } from '../config/api';
+import ImportExportButtons from '../components/ImportExportButtons';
 
 interface MedicalExamination {
   id: number;
@@ -19,6 +21,7 @@ interface MedicalExamination {
 }
 
 const MedicalExaminations: React.FC = () => {
+  const navigate = useNavigate();
   const [form] = Form.useForm();
   const [examinations, setExaminations] = useState<MedicalExamination[]>([]);
   const [displayExaminations, setDisplayExaminations] = useState<MedicalExamination[]>([]);
@@ -389,7 +392,32 @@ const MedicalExaminations: React.FC = () => {
   return (
     <Card 
       title={`符合条件的体检记录数量：${total}`} 
-      extra={<Button type="primary" icon={<PlusOutlined />} onClick={handleAddExamination}>添加体检记录</Button>}
+      extra={
+        <Space>
+          <ImportExportButtons 
+            dataType="medicalExamination"
+            exportData={displayExaminations}
+            fullData={examinations}
+            onImportSuccess={fetchExaminations}
+            fileNamePrefix="体检记录"
+            requiredFields={['employee_number', 'examination_date', 'audiometry_result', 'dust_examination_result']}
+          />
+          <Button 
+            type="default" 
+            icon={<HistoryOutlined />}
+            onClick={() => navigate('/medical-examinations/operation-records')}
+          >
+            操作记录
+          </Button>
+          <Button 
+            type="primary" 
+            icon={<PlusOutlined />} 
+            onClick={handleAddExamination}
+          >
+            添加体检记录
+          </Button>
+        </Space>
+      }
     >
       <Form<typeof searchParams> 
         form={form} 
@@ -397,27 +425,28 @@ const MedicalExaminations: React.FC = () => {
         layout="inline" 
         style={{ marginBottom: 16, display: 'flex', alignItems: 'flex-end', gap: 16, width: '100%', flexWrap: 'wrap' }}
       >
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <Form.Item name="employee_name" label="员工姓名">
+        <div style={{ display: 'flex', gap: 8, flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
+          <Form.Item name="employee_name" label="员工姓名" style={{ minWidth: 180, flex: 1 }}>
             <Input placeholder="请输入员工姓名" />
           </Form.Item>
-          <Form.Item name="examination_date" label="体检日期">
+          <Form.Item name="examination_date" label="体检日期" style={{ minWidth: 180, flex: 1 }}>
             <DatePicker 
               format="YYYY-MM-DD" 
+              style={{ width: '100%' }}
               onChange={date => date && setSearchParams(prev => ({
                 ...prev, 
                 examination_date: date.format('YYYY-MM-DD')
               }))} 
             />
           </Form.Item>
-          <Form.Item name="audiometry_result" label="电测听结果">
+          <Form.Item name="audiometry_result" label="电测听结果" style={{ minWidth: 180, flex: 1 }}>
             <Input placeholder="请输入电测听结果" />
           </Form.Item>
-          <Form.Item name="dust_examination_result" label="粉尘结果">
+          <Form.Item name="dust_examination_result" label="粉尘结果" style={{ minWidth: 180, flex: 1 }}>
             <Input placeholder="请输入粉尘结果" />
           </Form.Item>
         </div>
-        <Space style={{ marginLeft: 'auto' }}>
+        <Space>
           <Button type="default" onClick={handleClearFilters}>
             清空筛选条件
           </Button>

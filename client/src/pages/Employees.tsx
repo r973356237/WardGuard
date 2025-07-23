@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Form, Input, Button, Spin, Space, Modal, Select, Popconfirm, Row, Col, message, DatePicker, Drawer } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, HistoryOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import apiClient from '../config/axios';
 import moment from 'moment';
 import { API_ENDPOINTS } from '../config/api';
+import { useNavigate } from 'react-router-dom';
+import ImportExportButtons from '../components/ImportExportButtons';
 
 interface Employee {
   id: number;
@@ -38,6 +40,7 @@ interface ApiResponse {
 }
 
 const Employees: React.FC = () => {
+  const navigate = useNavigate();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [displayEmployees, setDisplayEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -369,13 +372,30 @@ const Employees: React.FC = () => {
     <Card 
       title={`符合条件的员工： ${total} `} 
       extra={
-        <Button 
-          type="primary" 
-          icon={<PlusOutlined />}
-          onClick={handleAddEmployee}
-        >
-          添加员工
-        </Button>
+        <Space>
+          <ImportExportButtons 
+            dataType="employee"
+            exportData={displayEmployees}
+            fullData={employees}
+            onImportSuccess={fetchEmployees}
+            fileNamePrefix="员工信息"
+            requiredFields={['name', 'employee_number', 'gender', 'workshop', 'position']}
+          />
+          <Button 
+            type="default" 
+            icon={<HistoryOutlined />}
+            onClick={() => navigate('/employees/operation-records')}
+          >
+            操作记录
+          </Button>
+          <Button 
+            type="primary" 
+            icon={<PlusOutlined />}
+            onClick={handleAddEmployee}
+          >
+            添加员工
+          </Button>
+        </Space>
       }
     >
       <Form<SearchParams> 
@@ -384,24 +404,24 @@ const Employees: React.FC = () => {
         layout="inline" 
         style={{ marginBottom: 16, display: 'flex', alignItems: 'flex-end', gap: 16, width: '100%', flexWrap: 'wrap' }}
       >
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <Form.Item name="name" label="姓名">
+        <div style={{ display: 'flex', gap: 8, flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
+          <Form.Item name="name" label="姓名" style={{ minWidth: 180, flex: 1 }}>
             <Input placeholder="请输入姓名" />
           </Form.Item>
-          <Form.Item name="employee_number" label="工号">
+          <Form.Item name="employee_number" label="工号" style={{ minWidth: 180, flex: 1 }}>
             <Input placeholder="请输入工号" />
           </Form.Item>
-          <Form.Item name="workshop" label="车间">
+          <Form.Item name="workshop" label="车间" style={{ minWidth: 180, flex: 1 }}>
             <Input placeholder="请输入车间" />
           </Form.Item>
-          <Form.Item name="gender" label="性别">
+          <Form.Item name="gender" label="性别" style={{ minWidth: 180, flex: 1 }}>
             <Input placeholder="请输入性别" />
           </Form.Item>
-          <Form.Item name="position" label="职位">
+          <Form.Item name="position" label="职位" style={{ minWidth: 180, flex: 1 }}>
             <Input placeholder="请输入职位" />
           </Form.Item>
         </div>
-        <Space style={{ marginLeft: 'auto' }}>
+        <Space>
           <Button type="default" onClick={handleClearFilters}>
             清空筛选条件
           </Button>

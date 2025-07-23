@@ -20,13 +20,44 @@ let initializationPromise = null;
 const connectWithRetry = async (maxRetries = 5, delay = 2000) => {
   for (let i = 0; i < maxRetries; i++) {
     try {
-      if (!dbPool) {
-        dbPool = mysql.createPool(dbConfig);
+      // 如果连接池存在，先尝试关闭
+      if (dbPool) {
+        try {
+          await dbPool.end();
+          console.log('已关闭旧的数据库连接池');
+        } catch (err) {
+          console.warn('关闭旧连接池时出错:', err.message);
+        }
+        dbPool = null;
       }
+
+      // 创建新的连接池
+      console.log('正在创建新的数据库连接池...');
+      dbPool = mysql.createPool({
+        ...dbConfig,
+        enableKeepAlive: true,
+        keepAliveInitialDelay: 10000,
+        connectTimeout: 10000,
+        acquireTimeout: 10000
+      });
       
       // 测试连接
       const connection = await dbPool.getConnection();
       await connection.ping();
+      
+      // 设置连接错误处理
+      connection.on('error', async (err) => {
+        console.error('数据库连接错误:', err.message);
+        if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
+          console.log('检测到连接丢失，准备重新连接...');
+          try {
+            await connectWithRetry(3, 1000);
+          } catch (reconnectError) {
+            console.error('重连失败:', reconnectError.message);
+          }
+        }
+      });
+      
       connection.release();
       
       if (config.isDevelopment()) {
@@ -124,35 +155,80 @@ async function initializeDB() {
 
 // 执行查询的包装函数，包含重试机制
 const executeQuery = async (sql, params = [], maxRetries = 3) => {
+  let lastError = null;
+  
   for (let i = 0; i < maxRetries; i++) {
     try {
+      // 确保数据库已初始化
       if (!dbPool) {
+        console.log('数据库连接池未初始化，正在初始化...');
         await initializeDB();
       }
-      const [results] = await dbPool.execute(sql, params);
-      return results;
+
+      // 获取连接并执行查询
+      const connection = await dbPool.getConnection();
+      try {
+        // 先ping测试连接是否有效
+        await connection.ping();
+        const [results] = await connection.execute(sql, params);
+        return results;
+      } catch (queryError) {
+        lastError = queryError;
+        console.error(`查询执行出错 (尝试 ${i + 1}/${maxRetries}):`, {
+          error: queryError.message,
+          code: queryError.code,
+          sql: queryError.sql,
+          sqlState: queryError.sqlState,
+          sqlMessage: queryError.sqlMessage
+        });
+        throw queryError;
+      } finally {
+        connection.release();
+      }
     } catch (error) {
-      console.warn(`查询执行失败 (尝试 ${i + 1}/${maxRetries}):`, error.message);
+      lastError = error;
+      console.warn(`查询执行失败 (尝试 ${i + 1}/${maxRetries}):`, {
+        message: error.message,
+        code: error.code,
+        sql: error.sql,
+        sqlState: error.sqlState,
+        sqlMessage: error.sqlMessage
+      });
       
+      // 如果是最后一次重试，抛出详细错误
       if (i === maxRetries - 1) {
-        throw error;
+        const detailedError = new Error(`查询执行失败 (已重试${maxRetries}次): ${error.message}`);
+        detailedError.originalError = error;
+        detailedError.sql = sql;
+        detailedError.params = params;
+        throw detailedError;
       }
       
-      // 如果是连接错误，尝试重新连接
-      if (error.code === 'PROTOCOL_CONNECTION_LOST' || 
-          error.code === 'ECONNRESET' || 
-          error.code === 'ENOTFOUND') {
+      // 如果是连接相关错误，尝试重新连接
+      if ([
+        'PROTOCOL_CONNECTION_LOST',
+        'ECONNRESET',
+        'ENOTFOUND',
+        'EPIPE',
+        'PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR'
+      ].includes(error.code)) {
+        console.log('检测到连接错误，尝试重新建立连接...');
         try {
           await connectWithRetry(2, 1000);
         } catch (reconnectError) {
-          console.error('重连失败:', reconnectError);
+          console.error('重连失败:', reconnectError.message);
         }
       }
       
-      // 等待后重试
-      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+      // 使用递增的延迟时间
+      const delay = 1000 * Math.pow(2, i);
+      console.log(`等待 ${delay}ms 后重试...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
+  
+  // 如果所有重试都失败了，抛出最后一个错误
+  throw lastError;
 };
 
 // 优雅关闭数据库连接

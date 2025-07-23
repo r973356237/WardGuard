@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Form, Input, Button, Spin, Space, Modal, Popconfirm, Row, Col, message, DatePicker } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, HistoryOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
 import apiClient from '../config/axios';
 import moment from 'moment';
 import { API_ENDPOINTS } from '../config/api';
+import ImportExportButtons from '../components/ImportExportButtons';
 
 interface Supply {
   id: number;
@@ -25,6 +27,7 @@ interface ApiResponse {
 }
 
 const Supplies: React.FC = () => {
+  const navigate = useNavigate();
   const [form] = Form.useForm();
   const [supplies, setSupplies] = useState<Supply[]>([]);
   const [displaySupplies, setDisplaySupplies] = useState<Supply[]>([]);
@@ -509,18 +512,43 @@ const Supplies: React.FC = () => {
   ];
 
   return (
-    <Card title={`符合条件的物资数量：${total}`} extra={<Button type="primary" icon={<PlusOutlined />} onClick={handleAddSupply}>添加物资</Button>}>
-      <Form<typeof searchParams> form={form} onValuesChange={handleSearch} layout="inline" style={{ marginBottom: 16, display: 'flex', alignItems: 'flex-end', gap: 16, width: '100%', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 4, flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
-          <Form.Item name="supply_name" label="物资名称" >
-            <Input placeholder="请输入物资名称" style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="storage_location" label="存储位置" >
-            <Input placeholder="请输入存储位置" style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="production_date" label="生产日期" >
-            <DatePicker format="YYYY-MM-DD" onChange={date => date && setSearchParams(prev => ({...prev, production_date: date.format('YYYY-MM-DD')}))} style={{ width: '100%' }} />
-          </Form.Item>
+    <Card title={`符合条件的物资数量：${total}`} extra={
+      <Space>
+        <ImportExportButtons 
+          dataType="supply"
+          exportData={displaySupplies}
+          fullData={supplies}
+          onImportSuccess={fetchSupplies}
+          fileNamePrefix="物资信息"
+          requiredFields={['name', 'specification', 'unit', 'stock_quantity']}
+        />
+        <Button 
+          type="default" 
+          icon={<HistoryOutlined />}
+          onClick={() => navigate('/supplies/operation-records')}
+        >
+          操作记录
+        </Button>
+        <Button 
+          type="primary" 
+          icon={<PlusOutlined />} 
+          onClick={handleAddSupply}
+        >
+          添加物资
+        </Button>
+      </Space>
+    }>
+      <Form<typeof searchParams> form={form} onValuesChange={handleSearch} layout="inline" style={{ marginBottom: 16, display: 'flex', alignItems: 'flex-end', gap: 8, width: '100%', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
+          <Form.Item name="supply_name" label="物资名称" style={{ minWidth: 180, flex: 1 }}>
+              <Input placeholder="请输入物资名称" style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="storage_location" label="存储位置" style={{ minWidth: 180, flex: 1 }}>
+              <Input placeholder="请输入存储位置" style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="production_date" label="生产日期" style={{ minWidth: 180, flex: 1 }}>
+              <DatePicker format="YYYY-MM-DD" onChange={date => date && setSearchParams(prev => ({...prev, production_date: date.format('YYYY-MM-DD')}))} style={{ width: '100%' }} />
+            </Form.Item>
           <div style={{ display: 'flex', gap: 4, flex: 1, minWidth: 0 }}>
             <Form.Item name="expiration_start" label="过期时间" style={{ margin: 0, minWidth: 0 }}>
               <DatePicker format="YYYY-MM-DD" onChange={date => date && setSearchParams(prev => ({...prev, expiration_start: date.format('YYYY-MM-DD')}))} style={{ width: '100%' }} />
@@ -530,7 +558,7 @@ const Supplies: React.FC = () => {
             </Form.Item>
           </div>
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 16, whiteSpace: 'nowrap', minWidth: '240px', flexShrink: 0 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, whiteSpace: 'nowrap', minWidth: '240px', flexShrink: 0 }}>
           <Button type="default" onClick={handleClearFilters}>清空筛选条件</Button>
           <Button type="primary" onClick={handleExpiredSupplies}>查询已过期物资</Button>
         </div>

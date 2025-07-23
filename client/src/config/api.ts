@@ -55,6 +55,9 @@ export const API_ENDPOINTS = {
   
   // 倒班日历
   SHIFT_CALENDAR: '/api/shift-calendar',
+  
+  // 权限相关
+  MODULE_PERMISSIONS: '/api/modules/permissions',
 };
 
 // 构建完整的 API URL

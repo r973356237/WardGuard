@@ -54,6 +54,7 @@ const medicalExaminationRoutes = require('./routes/medicalExaminationRoutes');
 const operationRecordRoutes = require('./routes/operationRecordRoutes');
 const systemRoutes = require('./routes/systemRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
+const permissionRoutes = require('./routes/permissionRoutes');
 
 // 使用路由
 app.use('/api/users', userRoutes);
@@ -64,6 +65,7 @@ app.use('/api/medical-examinations', medicalExaminationRoutes);
 app.use('/api/operation-records', operationRecordRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/system', systemRoutes);
+app.use('/api', permissionRoutes); // 权限管理路由
 
 // 直接挂载系统名称路由（为了兼容前端API配置）
 app.use('/api', systemRoutes);

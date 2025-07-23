@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Form, Input, Button, Spin, Space, Modal, Popconfirm, Row, Col, message, DatePicker } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, HistoryOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import apiClient from '../config/axios';
 import moment from 'moment';
 import { API_ENDPOINTS } from '../config/api';
+import { useNavigate } from 'react-router-dom';
+import ImportExportButtons from '../components/ImportExportButtons';
 
 interface Medicine {
   id: number;
@@ -19,6 +21,7 @@ interface Medicine {
 }
 
 const Medicines: React.FC = () => {
+  const navigate = useNavigate();
   const [form] = Form.useForm();
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [displayMedicines, setDisplayMedicines] = useState<Medicine[]>([]);
@@ -488,24 +491,41 @@ const Medicines: React.FC = () => {
     <Card 
       title={`符合条件的药品数量：${total}`} 
       extra={
-        <Button 
-          type="primary" 
-          icon={<PlusOutlined />}
-          onClick={handleAddMedicine}
-        >
-          添加药品
-        </Button>
+        <Space>
+          <ImportExportButtons 
+            dataType="medicine"
+            exportData={displayMedicines}
+            fullData={medicines}
+            onImportSuccess={fetchMedicines}
+            fileNamePrefix="药品信息"
+            requiredFields={['name', 'specification', 'unit', 'stock_quantity']}
+          />
+          <Button 
+            type="default" 
+            icon={<HistoryOutlined />}
+            onClick={() => navigate('/medicines/operation-records')}
+          >
+            操作记录
+          </Button>
+          <Button 
+            type="primary" 
+            icon={<PlusOutlined />}
+            onClick={handleAddMedicine}
+          >
+            添加药品
+          </Button>
+        </Space>
       }
     >
-      <Form<typeof searchParams> form={form} onValuesChange={handleSearch} layout="inline" style={{ marginBottom: 16, display: 'flex', alignItems: 'flex-end', gap: 16, width: '100%', flexWrap: 'wrap' }}>
+      <Form<typeof searchParams> form={form} onValuesChange={handleSearch} layout="inline" style={{ marginBottom: 16, display: 'flex', alignItems: 'flex-end', gap: 8, width: '100%', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 4, flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
-          <Form.Item name="medicine_name" label="药品名称" >
+          <Form.Item name="medicine_name" label="药品名称" style={{ minWidth: 180, flex: 1 }}>
             <Input placeholder="请输入药品名称" style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="storage_location" label="存储位置" >
+          <Form.Item name="storage_location" label="存储位置" style={{ minWidth: 180, flex: 1 }}>
             <Input placeholder="请输入存储位置" style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="production_date" label="生产日期" >
+          <Form.Item name="production_date" label="生产日期" style={{ minWidth: 180, flex: 1 }}>
             <DatePicker format="YYYY-MM-DD" onChange={date => date && setSearchParams(prev => ({...prev, production_date: date.format('YYYY-MM-DD')}))} style={{ width: '100%' }} />
           </Form.Item>
           <div style={{ display: 'flex', gap: 4, flex: 1, minWidth: 0 }}>
@@ -517,7 +537,7 @@ const Medicines: React.FC = () => {
             </Form.Item>
           </div>
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 16, whiteSpace: 'nowrap', minWidth: '240px', flexShrink: 0 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, whiteSpace: 'nowrap', minWidth: '240px', flexShrink: 0 }}>
           <Button type="default" onClick={handleClearFilters}>清空筛选条件</Button>
           <Button type="primary" onClick={handleExpiredMedicines}>查询已过期药品</Button>
         </div>

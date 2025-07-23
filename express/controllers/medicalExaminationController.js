@@ -1,5 +1,7 @@
 const { getPool } = require('../db');
 const { addOperationRecord } = require('./operationRecordController');
+const ExcelJS = require('exceljs');
+const path = require('path');
 
 /**
  * 获取所有体检信息列表
@@ -17,6 +19,81 @@ exports.getAllMedicalExaminations = async (req, res) => {
   } catch (err) {
     console.error('获取体检信息错误:', err);
     res.status(500).json({ success: false, message: '服务器错误', error: err.message });
+  }
+};
+
+/**
+ * 导出体检记录
+ */
+exports.exportMedicalExaminations = async (req, res) => {
+  try {
+    const pool = await getPool();
+    const [medicalExaminations] = await pool.execute('SELECT medical_examinations.*, employees.name as employee_name FROM medical_examinations LEFT JOIN employees ON medical_examinations.employee_number = employees.employee_number ORDER BY medical_examinations.id DESC');
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('体检记录');
+
+    // 设置表头
+    worksheet.columns = [
+      { header: '工号', key: 'employee_number', width: 15 },
+      { header: '姓名', key: 'employee_name', width: 15 },
+      { header: '体检日期', key: 'examination_date', width: 15 },
+      { header: '听力检查结果', key: 'audiometry_result', width: 20 },
+      { header: '粉尘检查结果', key: 'dust_examination_result', width: 20 },
+      { header: '是否需要复查', key: 'need_recheck', width: 15 },
+      { header: '复查日期', key: 'recheck_date', width: 15 },
+      { header: '听力复查结果', key: 'audiometry_recheck_result', width: 20 },
+      { header: '粉尘复查结果', key: 'dust_recheck_result', width: 20 }
+    ];
+
+    // 添加数据
+    medicalExaminations.forEach(exam => {
+      worksheet.addRow({
+        employee_number: exam.employee_number,
+        employee_name: exam.employee_name,
+        examination_date: exam.examination_date ? new Date(exam.examination_date).toLocaleDateString() : '',
+        audiometry_result: exam.audiometry_result,
+        dust_examination_result: exam.dust_examination_result,
+        need_recheck: exam.need_recheck ? '是' : '否',
+        recheck_date: exam.recheck_date ? new Date(exam.recheck_date).toLocaleDateString() : '',
+        audiometry_recheck_result: exam.audiometry_recheck_result || '',
+        dust_recheck_result: exam.dust_recheck_result || ''
+      });
+    });
+
+    // 设置响应头
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=medical-examinations-${new Date().toISOString().split('T')[0]}.xlsx`
+    );
+
+    // 写入响应
+    await workbook.xlsx.write(res);
+    res.end();
+
+    // 添加操作记录
+    try {
+      await addOperationRecord(
+        req.user?.id,
+        'export',
+        'medical_examination',
+        null,
+        '导出体检记录',
+        { count: medicalExaminations.length }
+      );
+    } catch (recordErr) {
+      console.error('保存体检记录导出操作记录失败:', recordErr.message);
+    }
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: '导出体检记录失败',
+      error: err.message
+    });
   }
 };
 
@@ -287,6 +364,144 @@ exports.deleteMedicalExamination = async (req, res) => {
     });
   } catch (err) {
     console.error('删除体检信息错误:', err);
+    res.status(500).json({ success: false, message: '服务器错误', error: err.message });
+  }
+};
+
+/**
+ * 批量导入体检记录
+ */
+exports.batchImportMedicalExaminations = async (req, res) => {
+  console.log('收到批量导入体检记录请求，数据条数:', req.body.examinations?.length);
+  try {
+    const { examinations } = req.body;
+
+    if (!examinations || !Array.isArray(examinations) || examinations.length === 0) {
+      return res.status(400).json({ success: false, message: '导入数据不能为空' });
+    }
+
+    const pool = await getPool();
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: []
+    };
+
+    // 开始事务
+    await pool.execute('START TRANSACTION');
+
+    try {
+      for (let i = 0; i < examinations.length; i++) {
+        const examination = examinations[i];
+        const { 
+          employee_number, employee_name, examination_date, 
+          audiometry_result, dust_examination_result, need_recheck, 
+          recheck_date, audiometry_recheck_result, dust_recheck_result 
+        } = examination;
+
+        try {
+          // 验证必填参数
+          if (!examination_date || !audiometry_result || !dust_examination_result) {
+            results.failed++;
+            results.errors.push(`第${i + 1}行：体检日期、电测听结果、粉尘检查结果为必填项`);
+            continue;
+          }
+
+          // 如果没有工号但有员工姓名，则通过姓名查询工号
+          if (!employee_number && !employee_name) {
+            results.failed++;
+            results.errors.push(`第${i + 1}行：工号或员工姓名至少需要提供一个`);
+            continue;
+          }
+
+          let finalEmployeeNumber = employee_number;
+          let finalEmployeeName = employee_name;
+
+          // 如果提供了员工姓名但没有工号，通过姓名查询工号
+          if (!employee_number && employee_name) {
+            const [employeesByName] = await pool.execute('SELECT employee_number, name FROM employees WHERE name = ?', [employee_name]);
+            if (employeesByName.length === 0) {
+              results.failed++;
+              results.errors.push(`第${i + 1}行：未找到员工 ${employee_name}`);
+              continue;
+            }
+            if (employeesByName.length > 1) {
+              results.failed++;
+              results.errors.push(`第${i + 1}行：存在多个同名员工 ${employee_name}，请提供工号`);
+              continue;
+            }
+            finalEmployeeNumber = employeesByName[0].employee_number;
+            finalEmployeeName = employeesByName[0].name;
+          }
+
+          // 如果提供了工号，验证工号是否存在并获取员工姓名
+          if (finalEmployeeNumber) {
+            const [employees] = await pool.execute('SELECT employee_number, name FROM employees WHERE employee_number = ?', [finalEmployeeNumber]);
+            if (employees.length === 0) {
+              results.failed++;
+              results.errors.push(`第${i + 1}行：工号 ${finalEmployeeNumber} 对应的员工不存在`);
+              continue;
+            }
+            finalEmployeeName = employees[0].name;
+          }
+
+          // 插入体检记录数据
+          const [result] = await pool.execute(
+            'INSERT INTO medical_examinations (employee_number, examination_date, audiometry_result, dust_examination_result, need_recheck, recheck_date, audiometry_recheck_result, dust_recheck_result) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [finalEmployeeNumber, examination_date, audiometry_result, dust_examination_result, need_recheck || 0, recheck_date || null, audiometry_recheck_result || null, dust_recheck_result || null]
+          );
+
+          // 添加操作记录
+          try {
+            await addOperationRecord(
+              req.user?.id,
+              'create',
+              'medical_examination',
+              result.insertId,
+              `体检信息-${finalEmployeeName}`,
+              {
+                employee_number: finalEmployeeNumber,
+                employee_name: finalEmployeeName,
+                examination_date,
+                audiometry_result,
+                dust_examination_result,
+                need_recheck,
+                recheck_date,
+                audiometry_recheck_result,
+                dust_recheck_result,
+                import_batch: true
+              }
+            );
+          } catch (recordErr) {
+            console.error('保存体检记录导入操作记录失败:', recordErr.message);
+          }
+
+          results.success++;
+        } catch (error) {
+          results.failed++;
+          results.errors.push(`第${i + 1}行：${error.message}`);
+          console.error(`导入第${i + 1}行体检记录失败:`, error);
+        }
+      }
+
+      // 提交事务
+      await pool.execute('COMMIT');
+
+      console.log('批量导入体检记录完成，成功:', results.success, '失败:', results.failed);
+      res.json({
+        success: true,
+        message: `批量导入完成，成功 ${results.success} 条，失败 ${results.failed} 条`,
+        data: results
+      });
+
+    } catch (error) {
+      // 回滚事务
+      await pool.execute('ROLLBACK');
+      throw error;
+    }
+
+  } catch (err) {
+    console.error('批量导入体检记录错误:', err);
     res.status(500).json({ success: false, message: '服务器错误', error: err.message });
   }
 };

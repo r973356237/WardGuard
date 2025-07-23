@@ -5,8 +5,7 @@ const { addOperationRecord } = require('./operationRecordController');
  * 获取所有人员列表
  */
 exports.getAllEmployees = async (req, res) => {
-  console.log('[DEBUG] 开始获取所有员工信息请求');
-  console.log('收到获取所有人员请求');
+
   try {
     const pool = await db.getPool();
     const [employees] = await pool.execute('SELECT * FROM employees ORDER BY id DESC');
@@ -36,13 +35,13 @@ exports.getAllEmployees = async (req, res) => {
       };
     });
     
-    console.log('获取人员成功，共', updatedEmployees.length, '条记录');
+
     res.json({
       success: true,
       data: updatedEmployees
     });
   } catch (err) {
-    console.error('获取人员错误:', err);
+
     res.status(500).json({ success: false, message: '服务器错误', error: err.message });
   }
 };
@@ -51,7 +50,7 @@ exports.getAllEmployees = async (req, res) => {
  * 添加新人员
  */
 exports.addEmployee = async (req, res) => {
-  console.log('收到添加人员请求:', req.body);
+
   try {
     const { 
       name, employee_number, gender, workshop, position,
@@ -61,7 +60,7 @@ exports.addEmployee = async (req, res) => {
 
     // 验证必填参数
     if (!name || !employee_number || !gender || !workshop || !position) {
-      console.log('人员基本参数不完整:', req.body);
+
       return res.status(400).json({ success: false, message: '姓名、工号、性别、车间、职位为必填项' });
     }
 
@@ -69,7 +68,7 @@ exports.addEmployee = async (req, res) => {
     const pool = await db.getPool();
     const [existingEmployees] = await pool.execute('SELECT * FROM employees WHERE employee_number = ?', [employee_number]);
     if (existingEmployees.length > 0) {
-      console.log('工号已存在:', employee_number);
+
       return res.status(400).json({ success: false, message: '工号已存在' });
     }
 
@@ -89,7 +88,7 @@ exports.addEmployee = async (req, res) => {
       calculatedTotalExposureTime = parseFloat(pre_hire_exposure_time) || 0;
     }
     
-    console.log(`计算的总接害时间: ${calculatedTotalExposureTime}年`);
+
     
     // 插入新人员，包含新增字段
     const [result] = await pool.execute(
@@ -105,7 +104,7 @@ exports.addEmployee = async (req, res) => {
       ]
     );
 
-    console.log('添加人员成功，ID:', result.insertId);
+
     
     // 添加操作记录
     try {
@@ -130,9 +129,9 @@ exports.addEmployee = async (req, res) => {
           id_number
         }
       );
-      console.log('员工添加操作记录已保存');
+
     } catch (recordErr) {
-      console.error('保存员工添加操作记录失败:', recordErr.message);
+
       // 不影响主要操作，只记录错误
     }
     
@@ -147,7 +146,7 @@ exports.addEmployee = async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('添加人员错误:', err);
+
     res.status(500).json({ success: false, message: '服务器错误', error: err.message });
   }
 };
@@ -156,7 +155,7 @@ exports.addEmployee = async (req, res) => {
  * 更新人员信息
  */
 exports.updateEmployee = async (req, res) => {
-  console.log('收到更新人员请求:', req.params.id, req.body);
+
   try {
     const { id } = req.params;
     const { 
@@ -167,7 +166,7 @@ exports.updateEmployee = async (req, res) => {
 
     // 验证必填参数
     if (!name || !employee_number || !gender || !workshop || !position) {
-      console.log('人员基本参数不完整:', req.body);
+
       return res.status(400).json({ success: false, message: '姓名、工号、性别、车间、职位为必填项' });
     }
 
@@ -180,7 +179,7 @@ exports.updateEmployee = async (req, res) => {
       [employee_number, id]
     );
     if (existingEmployees.length > 0) {
-      console.log('工号已存在:', employee_number);
+
       return res.status(400).json({ success: false, message: '工号已存在' });
     }
 
@@ -200,7 +199,7 @@ exports.updateEmployee = async (req, res) => {
       calculatedTotalExposureTime = parseFloat(pre_hire_exposure_time) || 0;
     }
     
-    console.log(`计算的总接害时间: ${calculatedTotalExposureTime}年`);
+
     
     // 更新人员，包含新增字段
     const [result] = await pool.execute(
@@ -218,11 +217,11 @@ exports.updateEmployee = async (req, res) => {
     );
 
     if (result.affectedRows === 0) {
-      console.log('更新人员失败，未找到ID为', id, '的人员');
+
       return res.status(404).json({ success: false, message: '人员不存在' });
     }
 
-    console.log('更新人员成功，ID:', id);
+
     
     // 添加操作记录
     try {
@@ -247,9 +246,9 @@ exports.updateEmployee = async (req, res) => {
           id_number
         }
       );
-      console.log('员工更新操作记录已保存');
+
     } catch (recordErr) {
-      console.error('保存员工更新操作记录失败:', recordErr.message);
+
       // 不影响主要操作，只记录错误
     }
     
@@ -263,7 +262,7 @@ exports.updateEmployee = async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('更新人员错误:', err);
+
     res.status(500).json({ success: false, message: '服务器错误', error: err.message });
   }
 };
@@ -272,7 +271,7 @@ exports.updateEmployee = async (req, res) => {
  * 删除人员
  */
 exports.deleteEmployee = async (req, res) => {
-  console.log('收到删除人员请求:', req.params.id);
+
   try {
     const { id } = req.params;
 
@@ -283,7 +282,7 @@ exports.deleteEmployee = async (req, res) => {
     const [employeeInfo] = await pool.execute('SELECT name FROM employees WHERE id = ?', [id]);
     
     if (employeeInfo.length === 0) {
-      console.log('删除人员失败，未找到ID为', id, '的人员');
+
       return res.status(404).json({ success: false, message: '人员不存在' });
     }
 
@@ -292,18 +291,18 @@ exports.deleteEmployee = async (req, res) => {
     // 检查是否有关联的体检信息
     const [medicalExaminations] = await pool.execute('SELECT * FROM medical_examinations WHERE employee_number IN (SELECT employee_number FROM employees WHERE id = ?)', [id]);
     if (medicalExaminations.length > 0) {
-      console.log('删除人员失败，该人员存在关联的体检信息:', id);
+
       return res.status(400).json({ success: false, message: '该人员存在关联的体检信息，无法删除' });
     }
 
     const [result] = await pool.execute('DELETE FROM employees WHERE id = ?', [id]);
 
     if (result.affectedRows === 0) {
-      console.log('删除人员失败，未找到ID为', id, '的人员');
+
       return res.status(404).json({ success: false, message: '人员不存在' });
     }
 
-    console.log('删除人员成功，ID:', id);
+
     
     // 添加操作记录
     try {
@@ -318,9 +317,9 @@ exports.deleteEmployee = async (req, res) => {
           deleted_employee_name: employeeName
         }
       );
-      console.log('员工删除操作记录已保存');
+
     } catch (recordErr) {
-      console.error('保存员工删除操作记录失败:', recordErr.message);
+
       // 不影响主要操作，只记录错误
     }
     
@@ -329,7 +328,7 @@ exports.deleteEmployee = async (req, res) => {
       message: '人员删除成功'
     });
   } catch (err) {
-    console.error('删除人员错误:', err);
+
     res.status(500).json({ success: false, message: '服务器错误', error: err.message });
   }
 };
@@ -338,7 +337,7 @@ exports.deleteEmployee = async (req, res) => {
  * 根据工号获取人员信息
  */
 exports.getEmployeeByNumber = async (req, res) => {
-  console.log('收到根据工号获取人员请求:', req.params.employee_number);
+
   try {
     const { employee_number } = req.params;
 
@@ -348,17 +347,149 @@ exports.getEmployeeByNumber = async (req, res) => {
     const [employees] = await pool.execute('SELECT * FROM employees WHERE employee_number = ?', [employee_number]);
 
     if (employees.length === 0) {
-      console.log('未找到工号为', employee_number, '的人员');
+
       return res.status(404).json({ success: false, message: '人员不存在' });
     }
 
-    console.log('根据工号获取人员成功:', employee_number);
+
     res.json({
       success: true,
       data: employees[0]
     });
   } catch (err) {
-    console.error('根据工号获取人员错误:', err);
+
+    res.status(500).json({ success: false, message: '服务器错误', error: err.message });
+  }
+};
+
+/**
+ * 批量导入员工
+ */
+exports.batchImportEmployees = async (req, res) => {
+
+  try {
+    const { employees } = req.body;
+
+    if (!employees || !Array.isArray(employees) || employees.length === 0) {
+      return res.status(400).json({ success: false, message: '导入数据不能为空' });
+    }
+
+    const pool = await db.getPool();
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: []
+    };
+
+    // 开始事务
+    await pool.execute('START TRANSACTION');
+
+    try {
+      for (let i = 0; i < employees.length; i++) {
+        const employee = employees[i];
+        const { 
+          name, employee_number, gender, workshop, position,
+          birth_date, hire_date, work_start_date, original_company,
+          total_exposure_time, pre_hire_exposure_time, id_number, status
+        } = employee;
+
+        try {
+          // 验证必填参数
+          if (!name || !employee_number || !gender || !workshop || !position) {
+            results.failed++;
+            results.errors.push(`第${i + 1}行：姓名、工号、性别、车间、职位为必填项`);
+            continue;
+          }
+
+          // 检查工号是否已存在
+          const [existingEmployees] = await pool.execute('SELECT * FROM employees WHERE employee_number = ?', [employee_number]);
+          if (existingEmployees.length > 0) {
+            results.failed++;
+            results.errors.push(`第${i + 1}行：工号 ${employee_number} 已存在`);
+            continue;
+          }
+
+          // 计算总接害时间
+          let calculatedTotalExposureTime = 0;
+          if (hire_date) {
+            const hireDate = new Date(hire_date);
+            const currentDate = new Date();
+            const workYears = (currentDate - hireDate) / (1000 * 60 * 60 * 24 * 365.25);
+            calculatedTotalExposureTime = workYears + (parseFloat(pre_hire_exposure_time) || 0);
+            calculatedTotalExposureTime = parseFloat(calculatedTotalExposureTime.toFixed(1));
+          } else {
+            calculatedTotalExposureTime = parseFloat(pre_hire_exposure_time) || 0;
+          }
+
+          // 插入员工数据
+          const [result] = await pool.execute(
+            `INSERT INTO employees (
+              name, employee_number, gender, workshop, position,
+              birth_date, hire_date, work_start_date, original_company,
+              total_exposure_time, pre_hire_exposure_time, id_number, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              name, employee_number, gender, workshop, position,
+              birth_date || null, hire_date || null, work_start_date || null, original_company || null,
+              calculatedTotalExposureTime, pre_hire_exposure_time || 0, id_number || null, status || '在职'
+            ]
+          );
+
+          // 添加操作记录
+          try {
+            await addOperationRecord(
+              req.user?.id,
+              'create',
+              'employee',
+              result.insertId,
+              name,
+              {
+                name,
+                employee_number,
+                gender,
+                workshop,
+                position,
+                birth_date,
+                hire_date,
+                work_start_date,
+                original_company,
+                total_exposure_time: calculatedTotalExposureTime,
+                pre_hire_exposure_time,
+                id_number,
+                status: status || '在职',
+                import_batch: true
+              }
+            );
+          } catch (recordErr) {
+            // 不影响主要操作，只记录错误
+          }
+
+          results.success++;
+        } catch (error) {
+          results.failed++;
+          results.errors.push(`第${i + 1}行：${error.message}`);
+
+        }
+      }
+
+      // 提交事务
+      await pool.execute('COMMIT');
+
+
+      res.json({
+        success: true,
+        message: `批量导入完成，成功 ${results.success} 条，失败 ${results.failed} 条`,
+        data: results
+      });
+
+    } catch (error) {
+      // 回滚事务
+      await pool.execute('ROLLBACK');
+      throw error;
+    }
+
+  } catch (err) {
+
     res.status(500).json({ success: false, message: '服务器错误', error: err.message });
   }
 };

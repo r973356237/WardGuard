@@ -1,22 +1,32 @@
 const express = require('express');
 const router = express.Router();
-const supplyController = require('../controllers/supplyController');
+const { 
+  getAllSupplies,
+  addSupply,
+  updateSupply,
+  deleteSupply,
+  batchImportSupplies,
+  exportSupplies
+} = require('../controllers/supplyController');
 const { authenticate } = require('../middleware/auth');
+const checkPermission = require('../middleware/check_permission');
 
-// 获取所有物资（需认证）
-router.get('/', authenticate, supplyController.getAllSupplies);
-console.log('获取物资列表路由已加载');
+// 获取所有物资
+router.get('/', authenticate, checkPermission('supplies:view'), getAllSupplies);
 
-// 添加新物资（需认证）
-router.post('/', authenticate, supplyController.addSupply);
-console.log('添加物资路由已加载');
+// 添加新物资
+router.post('/', authenticate, checkPermission('supplies:add'), addSupply);
 
-// 更新物资信息（需认证）
-router.put('/:id', authenticate, supplyController.updateSupply);
-console.log('更新物资路由已加载');
+// 更新物资信息
+router.put('/:id', authenticate, checkPermission('supplies:edit'), updateSupply);
 
-// 删除物资（需认证）
-router.delete('/:id', authenticate, supplyController.deleteSupply);
-console.log('删除物资路由已加载');
+// 删除物资
+router.delete('/:id', authenticate, checkPermission('supplies:delete'), deleteSupply);
+
+// 批量导入物资
+router.post('/batch-import', authenticate, checkPermission('supplies:import'), batchImportSupplies);
+
+// 导出物资
+router.get('/export', authenticate, checkPermission('supplies:export'), exportSupplies);
 
 module.exports = router;

@@ -14,6 +14,7 @@ import MedicalExaminations from './pages/MedicalExaminations';
 import Settings from './pages/Settings';
 import ShiftCalendarPage from './pages/ShiftCalendar';
 import Sidebar from './components/Sidebar';
+import OperationRecords from './components/OperationRecords';
 import { buildApiUrl, API_ENDPOINTS } from './config/api';
 import './App.css';
 
@@ -27,9 +28,13 @@ const MainLayout: React.FC<{ systemName: string }> = ({ systemName }) => {
     '/users': '用户管理',
     '/user-operation-records': '用户操作记录',
     '/employees': '员工管理',
+    '/employees/operation-records': '员工操作记录',
     '/medicines': '药品管理',
-    '/medical-examinations': '体检管理',
+    '/medicines/operation-records': '药品操作记录',
     '/supplies': '物资管理',
+    '/supplies/operation-records': '物资操作记录',
+    '/medical-examinations': '体检记录管理',
+    '/medical-examinations/operation-records': '体检记录操作记录',
     '/settings': '系统设置',
     '/dashboard': '仪表盘',
     '/shift-calendar': '倒班日历'
@@ -214,9 +219,41 @@ const App: React.FC = () => {
           <Route path="users" element={<Users />} />
           <Route path="user-operation-records/:userId?" element={<UserOperationRecords />} />
           <Route path="employees" element={<Employees />} />
+          <Route path="employees/operation-records" element={
+            <OperationRecords 
+              targetType="employee" 
+              title="员工操作记录" 
+              backPath="/employees" 
+              backButtonText="返回员工管理" 
+            />
+          } />
           <Route path="medicines" element={<Medicines />} />
+          <Route path="medicines/operation-records" element={
+            <OperationRecords 
+              targetType="medicine" 
+              title="药品操作记录" 
+              backPath="/medicines" 
+              backButtonText="返回药品管理" 
+            />
+          } />
           <Route path="supplies" element={<Supplies />} />
+          <Route path="supplies/operation-records" element={
+            <OperationRecords 
+              targetType="supply" 
+              title="物资操作记录" 
+              backPath="/supplies" 
+              backButtonText="返回物资管理" 
+            />
+          } />
           <Route path="medical-examinations" element={<MedicalExaminations />} />
+          <Route path="medical-examinations/operation-records" element={
+            <OperationRecords 
+              targetType="medical_examination" 
+              title="体检记录操作记录" 
+              backPath="/medical-examinations" 
+              backButtonText="返回体检记录管理" 
+            />
+          } />
           <Route path="shift-calendar" element={<ShiftCalendarPage />} />
           <Route 
             path="settings"

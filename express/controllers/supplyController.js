@@ -1,5 +1,7 @@
 const { getPool } = require('../db');
 const { addOperationRecord } = require('./operationRecordController');
+const ExcelJS = require('exceljs');
+const path = require('path');
 
 /**
  * 获取所有物资列表
@@ -46,6 +48,75 @@ exports.getAllSupplies = async (req, res) => {
         error: err.message 
       });
     }
+  }
+};
+
+/**
+ * 导出物资列表
+ */
+exports.exportSupplies = async (req, res) => {
+  try {
+    const pool = await getPool();
+    const [supplies] = await pool.execute('SELECT * FROM supplies ORDER BY id DESC');
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('物资列表');
+
+    // 设置表头
+    worksheet.columns = [
+      { header: '物资名称', key: 'supply_name', width: 20 },
+      { header: '存放位置', key: 'storage_location', width: 20 },
+      { header: '生产日期', key: 'production_date', width: 15 },
+      { header: '有效期(天)', key: 'validity_period_days', width: 12 },
+      { header: '数量', key: 'supply_number', width: 10 },
+      { header: '过期日期', key: 'expiration_date', width: 15 }
+    ];
+
+    // 添加数据
+    supplies.forEach(supply => {
+      worksheet.addRow({
+        supply_name: supply.supply_name,
+        storage_location: supply.storage_location,
+        production_date: new Date(supply.production_date).toLocaleDateString(),
+        validity_period_days: supply.validity_period_days,
+        supply_number: supply.supply_number,
+        expiration_date: new Date(supply.expiration_date).toLocaleDateString()
+      });
+    });
+
+    // 设置响应头
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=supplies-${new Date().toISOString().split('T')[0]}.xlsx`
+    );
+
+    // 写入响应
+    await workbook.xlsx.write(res);
+    res.end();
+
+    // 添加操作记录
+    try {
+      await addOperationRecord(
+        req.user?.id,
+        'export',
+        'supply',
+        null,
+        '导出物资列表',
+        { count: supplies.length }
+      );
+    } catch (recordErr) {
+      console.error('保存物资导出操作记录失败:', recordErr.message);
+    }
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: '导出物资列表失败',
+      error: err.message
+    });
   }
 };
 
@@ -127,6 +198,75 @@ exports.addSupply = async (req, res) => {
         error: err.message 
       });
     }
+  }
+};
+
+/**
+ * 导出物资列表
+ */
+exports.exportSupplies = async (req, res) => {
+  try {
+    const pool = await getPool();
+    const [supplies] = await pool.execute('SELECT * FROM supplies ORDER BY id DESC');
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('物资列表');
+
+    // 设置表头
+    worksheet.columns = [
+      { header: '物资名称', key: 'supply_name', width: 20 },
+      { header: '存放位置', key: 'storage_location', width: 20 },
+      { header: '生产日期', key: 'production_date', width: 15 },
+      { header: '有效期(天)', key: 'validity_period_days', width: 12 },
+      { header: '数量', key: 'supply_number', width: 10 },
+      { header: '过期日期', key: 'expiration_date', width: 15 }
+    ];
+
+    // 添加数据
+    supplies.forEach(supply => {
+      worksheet.addRow({
+        supply_name: supply.supply_name,
+        storage_location: supply.storage_location,
+        production_date: new Date(supply.production_date).toLocaleDateString(),
+        validity_period_days: supply.validity_period_days,
+        supply_number: supply.supply_number,
+        expiration_date: new Date(supply.expiration_date).toLocaleDateString()
+      });
+    });
+
+    // 设置响应头
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=supplies-${new Date().toISOString().split('T')[0]}.xlsx`
+    );
+
+    // 写入响应
+    await workbook.xlsx.write(res);
+    res.end();
+
+    // 添加操作记录
+    try {
+      await addOperationRecord(
+        req.user?.id,
+        'export',
+        'supply',
+        null,
+        '导出物资列表',
+        { count: supplies.length }
+      );
+    } catch (recordErr) {
+      console.error('保存物资导出操作记录失败:', recordErr.message);
+    }
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: '导出物资列表失败',
+      error: err.message
+    });
   }
 };
 
@@ -283,5 +423,111 @@ exports.deleteSupply = async (req, res) => {
         error: err.message 
       });
     }
+  }
+};
+
+/**
+ * 批量导入物资
+ */
+exports.batchImportSupplies = async (req, res) => {
+  console.log('收到批量导入物资请求，数据条数:', req.body.supplies?.length);
+  try {
+    const { supplies } = req.body;
+
+    if (!supplies || !Array.isArray(supplies) || supplies.length === 0) {
+      return res.status(400).json({ success: false, message: '导入数据不能为空' });
+    }
+
+    const pool = await getPool();
+    
+    // 检查数据库连接池
+    if (!pool || typeof pool.execute !== 'function') {
+      throw new Error('数据库连接池未正确初始化');
+    }
+
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: []
+    };
+
+    // 开始事务
+    await pool.execute('START TRANSACTION');
+
+    try {
+      for (let i = 0; i < supplies.length; i++) {
+        const supply = supplies[i];
+        const { 
+          supply_name, storage_location, production_date, 
+          validity_period_days, supply_number 
+        } = supply;
+
+        try {
+          // 验证必填参数
+          if (!supply_name || !storage_location || !production_date || !validity_period_days || !supply_number) {
+            results.failed++;
+            results.errors.push(`第${i + 1}行：物资名称、存储位置、生产日期、有效期天数、物资编号为必填项`);
+            continue;
+          }
+
+          // 计算过期日期
+          const expiration_date = new Date(production_date);
+          expiration_date.setDate(expiration_date.getDate() + parseInt(validity_period_days));
+
+          // 插入物资数据
+          const [result] = await pool.execute(
+            'INSERT INTO supplies (supply_name, storage_location, production_date, validity_period_days, supply_number, expiration_date) VALUES (?, ?, ?, ?, ?, ?)',
+            [supply_name, storage_location, production_date, validity_period_days, supply_number, expiration_date]
+          );
+
+          // 添加操作记录
+          try {
+            await addOperationRecord(
+              req.user?.id,
+              'create',
+              'supply',
+              result.insertId,
+              supply_name,
+              {
+                supply_name,
+                storage_location,
+                production_date,
+                validity_period_days,
+                supply_number,
+                expiration_date,
+                import_batch: true
+              }
+            );
+          } catch (recordErr) {
+            console.error('保存物资导入操作记录失败:', recordErr.message);
+          }
+
+          results.success++;
+        } catch (error) {
+          results.failed++;
+          results.errors.push(`第${i + 1}行：${error.message}`);
+          console.error(`导入第${i + 1}行物资失败:`, error);
+        }
+      }
+
+      // 提交事务
+      await pool.execute('COMMIT');
+
+      console.log('批量导入物资完成，成功:', results.success, '失败:', results.failed);
+      res.json({
+        success: true,
+        message: `批量导入完成，成功 ${results.success} 条，失败 ${results.failed} 条`,
+        data: results
+      });
+
+    } catch (error) {
+      // 回滚事务
+      await pool.execute('ROLLBACK');
+      throw error;
+    }
+
+  } catch (err) {
+    console.error('批量导入物资错误:', err);
+    res.status(500).json({ success: false, message: '服务器错误', error: err.message });
   }
 };
