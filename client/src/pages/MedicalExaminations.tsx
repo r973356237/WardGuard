@@ -400,7 +400,7 @@ const MedicalExaminations: React.FC = () => {
             fullData={examinations}
             onImportSuccess={fetchExaminations}
             fileNamePrefix="体检记录"
-            requiredFields={['employee_number', 'examination_date', 'audiometry_result', 'dust_examination_result']}
+            requiredFields={['工号', '体检日期', '体检结果']}
           />
           <Button 
             type="default" 

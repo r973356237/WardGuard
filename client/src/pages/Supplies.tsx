@@ -520,7 +520,7 @@ const Supplies: React.FC = () => {
           fullData={supplies}
           onImportSuccess={fetchSupplies}
           fileNamePrefix="物资信息"
-          requiredFields={['name', 'specification', 'unit', 'stock_quantity']}
+          requiredFields={['物资名称', '存放位置', '生产日期', '有效期天数', '编号']}
         />
         <Button 
           type="default" 

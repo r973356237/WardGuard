@@ -8,6 +8,8 @@ import { API_ENDPOINTS } from '../config/api';
 import { useNavigate } from 'react-router-dom';
 import ImportExportButtons from '../components/ImportExportButtons';
 
+const { Option } = Select;
+
 interface Employee {
   id: number;
   name: string;
@@ -31,6 +33,7 @@ interface SearchParams {
   workshop?: string;
   gender?: string;
   position?: string;
+  status?: string;
 }
 
 interface ApiResponse {
@@ -197,7 +200,7 @@ const Employees: React.FC = () => {
     let filtered: Employee[] = [...employees];
     
     // 应用筛选条件
-    const { name, employee_number, workshop, gender, position } = searchParams;
+    const { name, employee_number, workshop, gender, position, status } = searchParams;
     if (name) {
       filtered = filtered.filter(emp => 
         emp.name.toLowerCase().includes(name.toLowerCase())
@@ -221,6 +224,11 @@ const Employees: React.FC = () => {
     if (position) {
       filtered = filtered.filter(emp => 
         emp.position.toLowerCase().includes(position.toLowerCase())
+      );
+    }
+    if (status) {
+      filtered = filtered.filter(emp => 
+        (emp.status || '在职') === status
       );
     }
     
@@ -328,6 +336,30 @@ const Employees: React.FC = () => {
       sorter: (a, b) => (a.total_exposure_time || 0) - (b.total_exposure_time || 0)
     },
     { 
+      title: '状态', 
+      dataIndex: 'status', 
+      key: 'status', 
+      align: 'center',
+      render: (status: string) => {
+        const statusColors: { [key: string]: string } = {
+          '在职': 'green',
+          '离职': 'red',
+          '调岗': 'orange',
+          '休假': 'blue',
+          '停职': 'gray'
+        };
+        return (
+          <span style={{ 
+            color: statusColors[status] || 'black',
+            fontWeight: 'bold'
+          }}>
+            {status || '在职'}
+          </span>
+        );
+      },
+      sorter: (a, b) => (a.status || '在职').localeCompare(b.status || '在职')
+    },
+    { 
       title: '操作', 
       key: 'action', 
       render: (record: Employee) => (
@@ -379,7 +411,7 @@ const Employees: React.FC = () => {
             fullData={employees}
             onImportSuccess={fetchEmployees}
             fileNamePrefix="员工信息"
-            requiredFields={['name', 'employee_number', 'gender', 'workshop', 'position']}
+            requiredFields={['姓名', '工号', '性别', '车间', '职位']}
           />
           <Button 
             type="default" 
@@ -419,6 +451,15 @@ const Employees: React.FC = () => {
           </Form.Item>
           <Form.Item name="position" label="职位" style={{ minWidth: 180, flex: 1 }}>
             <Input placeholder="请输入职位" />
+          </Form.Item>
+          <Form.Item name="status" label="状态" style={{ minWidth: 180, flex: 1 }}>
+            <Select placeholder="请选择状态" allowClear>
+              <Option value="在职">在职</Option>
+              <Option value="离职">离职</Option>
+              <Option value="调岗">调岗</Option>
+              <Option value="休假">休假</Option>
+              <Option value="停职">停职</Option>
+            </Select>
           </Form.Item>
         </div>
         <Space>
@@ -610,6 +651,25 @@ const Employees: React.FC = () => {
               </Form.Item>
             </Col>
           </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="status"
+                label="状态"
+                rules={[{ required: true, message: '请选择状态' }]}
+                initialValue="在职"
+              >
+                <Select placeholder="请选择状态">
+                  <Option value="在职">在职</Option>
+                  <Option value="离职">离职</Option>
+                  <Option value="调岗">调岗</Option>
+                  <Option value="休假">休假</Option>
+                  <Option value="停职">停职</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
         </Form>
       </Modal>
 
@@ -710,6 +770,20 @@ const Employees: React.FC = () => {
                 <div style={{ marginBottom: 16 }}>
                   <strong>身份证号：</strong>
                   <span>{detailEmployee.id_number || '-'}</span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>状态：</strong>
+                  <span style={{
+                    color: detailEmployee.status === '在职' ? '#52c41a' : 
+                           detailEmployee.status === '离职' ? '#ff4d4f' :
+                           detailEmployee.status === '调岗' ? '#1890ff' :
+                           detailEmployee.status === '休假' ? '#faad14' :
+                           detailEmployee.status === '停职' ? '#f5222d' : '#666'
+                  }}>
+                    {detailEmployee.status || '在职'}
+                  </span>
                 </div>
               </Col>
             </Row>

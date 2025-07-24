@@ -373,6 +373,8 @@ exports.deleteMedicalExamination = async (req, res) => {
  */
 exports.batchImportMedicalExaminations = async (req, res) => {
   console.log('收到批量导入体检记录请求，数据条数:', req.body.examinations?.length);
+  let connection;
+  
   try {
     const { examinations } = req.body;
 
@@ -381,6 +383,10 @@ exports.batchImportMedicalExaminations = async (req, res) => {
     }
 
     const pool = await getPool();
+    
+    // 获取连接
+    connection = await pool.getConnection();
+    
     const results = {
       success: 0,
       failed: 0,
@@ -388,7 +394,7 @@ exports.batchImportMedicalExaminations = async (req, res) => {
     };
 
     // 开始事务
-    await pool.execute('START TRANSACTION');
+    await connection.beginTransaction();
 
     try {
       for (let i = 0; i < examinations.length; i++) {
@@ -419,7 +425,7 @@ exports.batchImportMedicalExaminations = async (req, res) => {
 
           // 如果提供了员工姓名但没有工号，通过姓名查询工号
           if (!employee_number && employee_name) {
-            const [employeesByName] = await pool.execute('SELECT employee_number, name FROM employees WHERE name = ?', [employee_name]);
+            const [employeesByName] = await connection.execute('SELECT employee_number, name FROM employees WHERE name = ?', [employee_name]);
             if (employeesByName.length === 0) {
               results.failed++;
               results.errors.push(`第${i + 1}行：未找到员工 ${employee_name}`);
@@ -436,7 +442,7 @@ exports.batchImportMedicalExaminations = async (req, res) => {
 
           // 如果提供了工号，验证工号是否存在并获取员工姓名
           if (finalEmployeeNumber) {
-            const [employees] = await pool.execute('SELECT employee_number, name FROM employees WHERE employee_number = ?', [finalEmployeeNumber]);
+            const [employees] = await connection.execute('SELECT employee_number, name FROM employees WHERE employee_number = ?', [finalEmployeeNumber]);
             if (employees.length === 0) {
               results.failed++;
               results.errors.push(`第${i + 1}行：工号 ${finalEmployeeNumber} 对应的员工不存在`);
@@ -446,7 +452,7 @@ exports.batchImportMedicalExaminations = async (req, res) => {
           }
 
           // 插入体检记录数据
-          const [result] = await pool.execute(
+          const [result] = await connection.execute(
             'INSERT INTO medical_examinations (employee_number, examination_date, audiometry_result, dust_examination_result, need_recheck, recheck_date, audiometry_recheck_result, dust_recheck_result) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [finalEmployeeNumber, examination_date, audiometry_result, dust_examination_result, need_recheck || 0, recheck_date || null, audiometry_recheck_result || null, dust_recheck_result || null]
           );
@@ -485,7 +491,7 @@ exports.batchImportMedicalExaminations = async (req, res) => {
       }
 
       // 提交事务
-      await pool.execute('COMMIT');
+      await connection.commit();
 
       console.log('批量导入体检记录完成，成功:', results.success, '失败:', results.failed);
       res.json({
@@ -496,12 +502,17 @@ exports.batchImportMedicalExaminations = async (req, res) => {
 
     } catch (error) {
       // 回滚事务
-      await pool.execute('ROLLBACK');
+      await connection.rollback();
       throw error;
     }
 
   } catch (err) {
     console.error('批量导入体检记录错误:', err);
     res.status(500).json({ success: false, message: '服务器错误', error: err.message });
+  } finally {
+    // 释放连接
+    if (connection) {
+      connection.release();
+    }
   }
 };

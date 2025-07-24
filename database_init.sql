@@ -53,18 +53,12 @@ CREATE TABLE IF NOT EXISTS supplies (
 -- 药品表
 CREATE TABLE IF NOT EXISTS medicines (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(200) NOT NULL COMMENT '药品名称',
-  generic_name VARCHAR(200) COMMENT '通用名',
-  dosage_form VARCHAR(50) COMMENT '剂型',
-  specification VARCHAR(100) COMMENT '规格',
-  manufacturer VARCHAR(200) COMMENT '生产厂家',
-  approval_number VARCHAR(100) COMMENT '批准文号',
-  current_stock INT DEFAULT 0 COMMENT '当前库存',
-  min_stock INT DEFAULT 0 COMMENT '最低库存',
-  unit_price DECIMAL(10,2) COMMENT '单价',
-  expiry_date DATE COMMENT '有效期',
-  storage_condition VARCHAR(200) COMMENT '储存条件',
-  status ENUM('active', 'inactive', 'expired') DEFAULT 'active' COMMENT '药品状态',
+  medicine_name VARCHAR(200) NOT NULL COMMENT '药品名称',
+  storage_location VARCHAR(100) NOT NULL COMMENT '存储位置',
+  production_date DATE NOT NULL COMMENT '生产日期',
+  validity_period_days INT NOT NULL COMMENT '有效期天数',
+  quantity INT NOT NULL DEFAULT 0 COMMENT '数量',
+  expiration_date DATE NOT NULL COMMENT '过期日期',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='药品表';
@@ -188,8 +182,8 @@ SELECT 'user', id FROM permissions WHERE action = 'read';
 CREATE INDEX idx_employees_status ON employees(status);
 CREATE INDEX idx_supplies_category ON supplies(category);
 CREATE INDEX idx_supplies_status ON supplies(status);
-CREATE INDEX idx_medicines_status ON medicines(status);
-CREATE INDEX idx_medicines_expiry ON medicines(expiry_date);
+CREATE INDEX idx_medicines_medicine_name ON medicines(medicine_name);
+CREATE INDEX idx_medicines_expiration ON medicines(expiration_date);
 CREATE INDEX idx_medical_examinations_employee ON medical_examinations(employee_id);
 CREATE INDEX idx_medical_examinations_date ON medical_examinations(exam_date);
 CREATE INDEX idx_operation_records_user ON operation_records(user_id);

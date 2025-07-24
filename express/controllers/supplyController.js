@@ -431,19 +431,26 @@ exports.deleteSupply = async (req, res) => {
  */
 exports.batchImportSupplies = async (req, res) => {
   console.log('收到批量导入物资请求，数据条数:', req.body.supplies?.length);
+  console.log('导入数据详情:', JSON.stringify(req.body.supplies, null, 2));
+  let connection;
+  
   try {
     const { supplies } = req.body;
 
     if (!supplies || !Array.isArray(supplies) || supplies.length === 0) {
+      console.log('导入数据验证失败: 数据为空或不是数组');
       return res.status(400).json({ success: false, message: '导入数据不能为空' });
     }
 
     const pool = await getPool();
     
     // 检查数据库连接池
-    if (!pool || typeof pool.execute !== 'function') {
+    if (!pool || typeof pool.getConnection !== 'function') {
       throw new Error('数据库连接池未正确初始化');
     }
+
+    // 获取连接
+    connection = await pool.getConnection();
 
     const results = {
       success: 0,
@@ -452,21 +459,33 @@ exports.batchImportSupplies = async (req, res) => {
     };
 
     // 开始事务
-    await pool.execute('START TRANSACTION');
+    await connection.beginTransaction();
 
     try {
       for (let i = 0; i < supplies.length; i++) {
         const supply = supplies[i];
+        console.log(`处理第${i + 1}行数据:`, JSON.stringify(supply, null, 2));
+        
+        // 使用前端传递的字段名
         const { 
-          supply_name, storage_location, production_date, 
-          validity_period_days, supply_number 
+          supply_name, storage_location, production_date, validity_period_days, supply_number
         } = supply;
 
         try {
-          // 验证必填参数
+          // 验证必填参数 - 根据数据库表结构，所有字段都是必填的
+          console.log(`第${i + 1}行验证:`, {
+            supply_name: !!supply_name,
+            storage_location: !!storage_location,
+            production_date: !!production_date,
+            validity_period_days: !!validity_period_days,
+            supply_number: !!supply_number
+          });
+          
           if (!supply_name || !storage_location || !production_date || !validity_period_days || !supply_number) {
+            const errorMsg = `第${i + 1}行：物资名称、存放位置、生产日期、有效期天数、编号为必填项`;
+            console.log('验证失败:', errorMsg);
             results.failed++;
-            results.errors.push(`第${i + 1}行：物资名称、存储位置、生产日期、有效期天数、物资编号为必填项`);
+            results.errors.push(errorMsg);
             continue;
           }
 
@@ -474,11 +493,17 @@ exports.batchImportSupplies = async (req, res) => {
           const expiration_date = new Date(production_date);
           expiration_date.setDate(expiration_date.getDate() + parseInt(validity_period_days));
 
-          // 插入物资数据
-          const [result] = await pool.execute(
+          // 插入物资数据 - 使用正确的数据库字段名
+          console.log(`第${i + 1}行准备插入数据:`, {
+            supply_name, storage_location, production_date, validity_period_days, supply_number, expiration_date
+          });
+          
+          const [result] = await connection.execute(
             'INSERT INTO supplies (supply_name, storage_location, production_date, validity_period_days, supply_number, expiration_date) VALUES (?, ?, ?, ?, ?, ?)',
             [supply_name, storage_location, production_date, validity_period_days, supply_number, expiration_date]
           );
+
+          console.log(`第${i + 1}行插入成功，ID:`, result.insertId);
 
           // 添加操作记录
           try {
@@ -505,15 +530,19 @@ exports.batchImportSupplies = async (req, res) => {
           results.success++;
         } catch (error) {
           results.failed++;
-          results.errors.push(`第${i + 1}行：${error.message}`);
+          const errorMsg = `第${i + 1}行：${error.message}`;
+          results.errors.push(errorMsg);
           console.error(`导入第${i + 1}行物资失败:`, error);
+          console.error('错误详情:', error.stack);
         }
       }
 
       // 提交事务
-      await pool.execute('COMMIT');
+      await connection.commit();
 
       console.log('批量导入物资完成，成功:', results.success, '失败:', results.failed);
+      console.log('错误详情:', results.errors);
+      
       res.json({
         success: true,
         message: `批量导入完成，成功 ${results.success} 条，失败 ${results.failed} 条`,
@@ -522,12 +551,19 @@ exports.batchImportSupplies = async (req, res) => {
 
     } catch (error) {
       // 回滚事务
-      await pool.execute('ROLLBACK');
+      await connection.rollback();
+      console.error('事务执行失败，已回滚:', error);
       throw error;
     }
 
   } catch (err) {
     console.error('批量导入物资错误:', err);
+    console.error('错误堆栈:', err.stack);
     res.status(500).json({ success: false, message: '服务器错误', error: err.message });
+  } finally {
+    // 释放连接
+    if (connection) {
+      connection.release();
+    }
   }
 };

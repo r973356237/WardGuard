@@ -117,17 +117,11 @@ export const employeeTemplate = [
 // 药品数据模板
 export const medicineTemplate = [
   {
-    '药品名称': '阿司匹林',
-    '规格': '100mg',
-    '单位': '盒',
-    '库存数量': 100,
-    '单价': 15.50,
-    '供应商': '医药公司',
-    '生产日期': '2024-01-01',
-    '有效期': '2026-01-01',
+    '药品名称': '阿司匹林片',
     '存储位置': 'A区-01',
-    '最小库存': 10,
-    '状态': '正常'
+    '生产日期': '2024-01-01',
+    '有效期天数': 730,
+    '数量': 100
   }
 ];
 
@@ -135,15 +129,10 @@ export const medicineTemplate = [
 export const supplyTemplate = [
   {
     '物资名称': '防护服',
-    '规格': 'XL',
-    '单位': '件',
-    '库存数量': 50,
-    '单价': 25.00,
-    '供应商': '防护用品公司',
-    '采购日期': '2024-01-01',
     '存储位置': 'B区-01',
-    '最小库存': 5,
-    '状态': '正常'
+    '生产日期': '2024-01-01',
+    '有效期天数': 365,
+    '编号': 'SUP001'
   }
 ];
 
@@ -152,11 +141,12 @@ export const medicalExaminationTemplate = [
   {
     '工号': 'EMP001',
     '体检日期': '2024-01-01',
-    '体检类型': '职业健康体检',
-    '体检结果': '正常',
-    '体检机构': '市人民医院',
-    '下次体检日期': '2025-01-01',
-    '备注': '无异常'
+    '听力检查结果': '正常',
+    '粉尘检查结果': '正常',
+    '是否需要复查': '否',
+    '复查日期': '',
+    '听力复查结果': '',
+    '粉尘复查结果': ''
   }
 ];
 
@@ -178,38 +168,28 @@ export const fieldMappings = {
     '状态': 'status'
   },
   medicine: {
-    '药品名称': 'name',
-    '规格': 'specification',
-    '单位': 'unit',
-    '库存数量': 'stock_quantity',
-    '单价': 'unit_price',
-    '供应商': 'supplier',
-    '生产日期': 'production_date',
-    '有效期': 'expiry_date',
+    '药品名称': 'medicine_name',
     '存储位置': 'storage_location',
-    '最小库存': 'min_stock',
-    '状态': 'status'
+    '生产日期': 'production_date',
+    '有效期天数': 'validity_period_days',
+    '数量': 'quantity'
   },
   supply: {
-    '物资名称': 'name',
-    '规格': 'specification',
-    '单位': 'unit',
-    '库存数量': 'stock_quantity',
-    '单价': 'unit_price',
-    '供应商': 'supplier',
-    '采购日期': 'purchase_date',
+    '物资名称': 'supply_name',
     '存储位置': 'storage_location',
-    '最小库存': 'min_stock',
-    '状态': 'status'
+    '生产日期': 'production_date',
+    '有效期天数': 'validity_period_days',
+    '编号': 'supply_number'
   },
   medicalExamination: {
     '工号': 'employee_number',
     '体检日期': 'examination_date',
-    '体检类型': 'examination_type',
-    '体检结果': 'result',
-    '体检机构': 'institution',
-    '下次体检日期': 'next_examination_date',
-    '备注': 'remarks'
+    '听力检查结果': 'audiometry_result',
+    '粉尘检查结果': 'dust_examination_result',
+    '是否需要复查': 'need_recheck',
+    '复查日期': 'recheck_date',
+    '听力复查结果': 'audiometry_recheck_result',
+    '粉尘复查结果': 'dust_recheck_result'
   }
 };
 

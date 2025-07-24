@@ -55,7 +55,7 @@ exports.addEmployee = async (req, res) => {
     const { 
       name, employee_number, gender, workshop, position,
       birth_date, hire_date, work_start_date, original_company,
-      total_exposure_time, pre_hire_exposure_time, id_number
+      total_exposure_time, pre_hire_exposure_time, id_number, status
     } = req.body;
 
     // 验证必填参数
@@ -90,17 +90,17 @@ exports.addEmployee = async (req, res) => {
     
 
     
-    // 插入新人员，包含新增字段
+    // 插入新人员，包含状态字段
     const [result] = await pool.execute(
       `INSERT INTO employees (
         name, employee_number, gender, workshop, position,
         birth_date, hire_date, work_start_date, original_company,
-        total_exposure_time, pre_hire_exposure_time, id_number
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        total_exposure_time, pre_hire_exposure_time, id_number, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         name, employee_number, gender, workshop, position,
         birth_date || null, hire_date || null, work_start_date || null, original_company || null,
-        calculatedTotalExposureTime, pre_hire_exposure_time || 0, id_number || null
+        calculatedTotalExposureTime, pre_hire_exposure_time || 0, id_number || null, status || '在职'
       ]
     );
 
@@ -126,7 +126,8 @@ exports.addEmployee = async (req, res) => {
           original_company,
           total_exposure_time: calculatedTotalExposureTime,
           pre_hire_exposure_time,
-          id_number
+          id_number,
+          status: status || '在职'
         }
       );
 
@@ -142,7 +143,7 @@ exports.addEmployee = async (req, res) => {
         id: result.insertId, 
         name, employee_number, gender, workshop, position,
         birth_date, hire_date, work_start_date, original_company,
-        total_exposure_time, pre_hire_exposure_time, id_number
+        total_exposure_time: calculatedTotalExposureTime, pre_hire_exposure_time, id_number, status: status || '在职'
       }
     });
   } catch (err) {
@@ -161,7 +162,7 @@ exports.updateEmployee = async (req, res) => {
     const { 
       name, employee_number, gender, workshop, position,
       birth_date, hire_date, work_start_date, original_company,
-      total_exposure_time, pre_hire_exposure_time, id_number
+      total_exposure_time, pre_hire_exposure_time, id_number, status
     } = req.body;
 
     // 验证必填参数
@@ -201,17 +202,17 @@ exports.updateEmployee = async (req, res) => {
     
 
     
-    // 更新人员，包含新增字段
+    // 更新人员，包含状态字段
     const [result] = await pool.execute(
       `UPDATE employees SET 
         name = ?, employee_number = ?, gender = ?, workshop = ?, position = ?,
         birth_date = ?, hire_date = ?, work_start_date = ?, original_company = ?,
-        total_exposure_time = ?, pre_hire_exposure_time = ?, id_number = ?
+        total_exposure_time = ?, pre_hire_exposure_time = ?, id_number = ?, status = ?
       WHERE id = ?`,
       [
         name, employee_number, gender, workshop, position,
         birth_date || null, hire_date || null, work_start_date || null, original_company || null,
-        calculatedTotalExposureTime, pre_hire_exposure_time || 0, id_number || null,
+        calculatedTotalExposureTime, pre_hire_exposure_time || 0, id_number || null, status || '在职',
         id
       ]
     );
@@ -243,7 +244,8 @@ exports.updateEmployee = async (req, res) => {
           original_company,
           total_exposure_time: calculatedTotalExposureTime,
           pre_hire_exposure_time,
-          id_number
+          id_number,
+          status: status || '在职'
         }
       );
 
@@ -258,7 +260,7 @@ exports.updateEmployee = async (req, res) => {
       data: { 
         id, name, employee_number, gender, workshop, position,
         birth_date, hire_date, work_start_date, original_company,
-        total_exposure_time, pre_hire_exposure_time, id_number
+        total_exposure_time: calculatedTotalExposureTime, pre_hire_exposure_time, id_number, status: status || '在职'
       }
     });
   } catch (err) {
@@ -366,7 +368,9 @@ exports.getEmployeeByNumber = async (req, res) => {
  * 批量导入员工
  */
 exports.batchImportEmployees = async (req, res) => {
-
+  console.log('收到批量导入员工请求，数据条数:', req.body.employees?.length);
+  let connection;
+  
   try {
     const { employees } = req.body;
 
@@ -375,6 +379,10 @@ exports.batchImportEmployees = async (req, res) => {
     }
 
     const pool = await db.getPool();
+    
+    // 获取连接
+    connection = await pool.getConnection();
+    
     const results = {
       success: 0,
       failed: 0,
@@ -382,7 +390,7 @@ exports.batchImportEmployees = async (req, res) => {
     };
 
     // 开始事务
-    await pool.execute('START TRANSACTION');
+    await connection.beginTransaction();
 
     try {
       for (let i = 0; i < employees.length; i++) {
@@ -402,7 +410,7 @@ exports.batchImportEmployees = async (req, res) => {
           }
 
           // 检查工号是否已存在
-          const [existingEmployees] = await pool.execute('SELECT * FROM employees WHERE employee_number = ?', [employee_number]);
+          const [existingEmployees] = await connection.execute('SELECT * FROM employees WHERE employee_number = ?', [employee_number]);
           if (existingEmployees.length > 0) {
             results.failed++;
             results.errors.push(`第${i + 1}行：工号 ${employee_number} 已存在`);
@@ -422,7 +430,7 @@ exports.batchImportEmployees = async (req, res) => {
           }
 
           // 插入员工数据
-          const [result] = await pool.execute(
+          const [result] = await connection.execute(
             `INSERT INTO employees (
               name, employee_number, gender, workshop, position,
               birth_date, hire_date, work_start_date, original_company,
@@ -461,6 +469,7 @@ exports.batchImportEmployees = async (req, res) => {
               }
             );
           } catch (recordErr) {
+            console.error('保存员工导入操作记录失败:', recordErr.message);
             // 不影响主要操作，只记录错误
           }
 
@@ -468,14 +477,14 @@ exports.batchImportEmployees = async (req, res) => {
         } catch (error) {
           results.failed++;
           results.errors.push(`第${i + 1}行：${error.message}`);
-
+          console.error(`导入第${i + 1}行员工失败:`, error);
         }
       }
 
       // 提交事务
-      await pool.execute('COMMIT');
+      await connection.commit();
 
-
+      console.log('批量导入员工完成，成功:', results.success, '失败:', results.failed);
       res.json({
         success: true,
         message: `批量导入完成，成功 ${results.success} 条，失败 ${results.failed} 条`,
@@ -484,12 +493,17 @@ exports.batchImportEmployees = async (req, res) => {
 
     } catch (error) {
       // 回滚事务
-      await pool.execute('ROLLBACK');
+      await connection.rollback();
       throw error;
     }
 
   } catch (err) {
-
+    console.error('批量导入员工错误:', err);
     res.status(500).json({ success: false, message: '服务器错误', error: err.message });
+  } finally {
+    // 释放连接
+    if (connection) {
+      connection.release();
+    }
   }
 };

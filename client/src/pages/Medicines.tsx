@@ -498,7 +498,7 @@ const Medicines: React.FC = () => {
             fullData={medicines}
             onImportSuccess={fetchMedicines}
             fileNamePrefix="药品信息"
-            requiredFields={['name', 'specification', 'unit', 'stock_quantity']}
+            requiredFields={['药品名称', '存储位置', '生产日期', '有效期天数', '数量']}
           />
           <Button 
             type="default" 

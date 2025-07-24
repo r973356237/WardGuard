@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Button, Upload, Modal, message, Space, Divider, Alert, List } from 'antd';
 import { DownloadOutlined, UploadOutlined, FileExcelOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
+import apiClient from '../config/axios';
+import { API_ENDPOINTS } from '../config/api';
 import { 
   exportToExcel, 
   generateTemplate, 
@@ -104,13 +106,12 @@ const ImportExportButtons: React.FC<ImportExportProps> = ({
       setUploading(true);
       const data = await importFromExcel(file);
       
-      // 转换字段名
-      const transformedData = transformImportData(data, dataType);
-      
-      // 验证数据
-      const validation = validateImportData(transformedData, requiredFields);
+      // 先验证原始数据（中文字段名）
+      const validation = validateImportData(data, requiredFields);
       
       if (validation.isValid) {
+        // 验证通过后再转换字段名
+        const transformedData = transformImportData(data, dataType);
         setImportData(transformedData);
         setValidationErrors([]);
         message.success(`成功读取 ${transformedData.length} 条数据`);
@@ -130,18 +131,58 @@ const ImportExportButtons: React.FC<ImportExportProps> = ({
   };
 
   // 确认导入
-  const handleConfirmImport = () => {
+  const handleConfirmImport = async () => {
     if (importData.length === 0) {
       message.warning('没有有效数据可以导入');
       return;
     }
 
-    onImportSuccess(importData);
-    setImportModalVisible(false);
-    setFileList([]);
-    setImportData([]);
-    setValidationErrors([]);
-    message.success(`成功导入 ${importData.length} 条数据`);
+    try {
+      setUploading(true);
+      
+      // 根据数据类型调用不同的API
+      let apiUrl = '';
+      let requestData = {};
+      
+      switch (dataType) {
+        case 'medicine':
+          apiUrl = `${API_ENDPOINTS.MEDICINES}/batch-import`;
+          requestData = { medicines: importData };
+          break;
+        case 'employee':
+          apiUrl = `${API_ENDPOINTS.EMPLOYEES}/batch-import`;
+          requestData = { employees: importData };
+          break;
+        case 'supply':
+          apiUrl = `${API_ENDPOINTS.SUPPLIES}/batch-import`;
+          requestData = { supplies: importData };
+          break;
+        case 'medicalExamination':
+          apiUrl = `${API_ENDPOINTS.MEDICAL_EXAMINATIONS}/batch-import`;
+          requestData = { examinations: importData };
+          break;
+        default:
+          throw new Error('不支持的数据类型');
+      }
+
+      const response = await apiClient.post(apiUrl, requestData);
+      
+      if (response.data.success) {
+        message.success(response.data.message || `成功导入 ${importData.length} 条数据`);
+        onImportSuccess(importData); // 调用回调函数刷新页面数据
+        setImportModalVisible(false);
+        setFileList([]);
+        setImportData([]);
+        setValidationErrors([]);
+      } else {
+        message.error(response.data.message || '导入失败');
+      }
+    } catch (error: any) {
+      console.error('导入失败:', error);
+      message.error(error.response?.data?.message || '导入失败，请重试');
+    } finally {
+      setUploading(false);
+    }
   };
 
   // 取消导入

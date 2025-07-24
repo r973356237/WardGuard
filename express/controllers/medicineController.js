@@ -278,6 +278,8 @@ exports.deleteMedicine = async (req, res) => {
  */
 exports.batchImportMedicines = async (req, res) => {
   console.log('收到批量导入药品请求，数据条数:', req.body.medicines?.length);
+  let connection;
+  
   try {
     const { medicines } = req.body;
 
@@ -292,8 +294,9 @@ exports.batchImportMedicines = async (req, res) => {
       errors: []
     };
 
-    // 开始事务
-    await pool.execute('START TRANSACTION');
+    // 获取连接并开始事务
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
 
     try {
       for (let i = 0; i < medicines.length; i++) {
@@ -316,7 +319,7 @@ exports.batchImportMedicines = async (req, res) => {
           expiration_date.setDate(expiration_date.getDate() + parseInt(validity_period_days));
 
           // 插入药品数据
-          const [result] = await pool.execute(
+          const [result] = await connection.execute(
             'INSERT INTO medicines (medicine_name, storage_location, production_date, validity_period_days, quantity, expiration_date) VALUES (?, ?, ?, ?, ?, ?)',
             [medicine_name, storage_location, production_date, validity_period_days, quantity, expiration_date]
           );
@@ -352,7 +355,7 @@ exports.batchImportMedicines = async (req, res) => {
       }
 
       // 提交事务
-      await pool.execute('COMMIT');
+      await connection.commit();
 
       console.log('批量导入药品完成，成功:', results.success, '失败:', results.failed);
       res.json({
@@ -363,12 +366,17 @@ exports.batchImportMedicines = async (req, res) => {
 
     } catch (error) {
       // 回滚事务
-      await pool.execute('ROLLBACK');
+      await connection.rollback();
       throw error;
     }
 
   } catch (err) {
     console.error('批量导入药品错误:', err);
     res.status(500).json({ success: false, message: '服务器错误', error: err.message });
+  } finally {
+    // 释放连接
+    if (connection) {
+      connection.release();
+    }
   }
 };
