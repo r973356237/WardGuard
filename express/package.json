@@ -6,9 +6,7 @@
     "start": "nodemon index.js",
     "dev": "cross-env NODE_ENV=development nodemon index.js",
     "prod": "cross-env NODE_ENV=production node index.js",
-    "build": "echo 'Building backend...' && npm install --production",
-    "migrate:email": "node migrate-email.js",
-    "migrate:remove-smtp": "node migrate-remove-smtp-fields.js"
+    "build": "echo 'Building backend...' && npm install --production"
   },
   "keywords": [],
   "devDependencies": {

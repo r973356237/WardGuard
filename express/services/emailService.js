@@ -76,6 +76,11 @@ class EmailService {
   async getExpiredItems() {
     try {
       const pool = await getPool();
+      if (!pool) {
+        console.log('数据库连接池未初始化，无法获取过期物资信息');
+        return { supplies: [], medicines: [], total: 0 };
+      }
+
       const today = new Date().toISOString().split('T')[0];
       
       // 查询过期物资，排除有效期为0的物资
@@ -202,6 +207,11 @@ class EmailService {
   async checkAndSendReminder() {
     try {
       const pool = await getPool();
+      if (!pool) {
+        console.log('数据库连接池未初始化，无法发送提醒邮件');
+        return { success: false, message: '数据库连接失败' };
+      }
+
       // 获取邮件配置
       const [emailConfigRows] = await pool.query('SELECT * FROM email_config LIMIT 1');
       if (!emailConfigRows || emailConfigRows.length === 0) {

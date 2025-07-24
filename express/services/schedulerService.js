@@ -28,6 +28,11 @@ class SchedulerService {
   async setupEmailReminderTask() {
     try {
       const pool = await getPool();
+      if (!pool) {
+        console.log('数据库连接池未初始化，跳过邮件提醒任务');
+        return;
+      }
+
       // 获取邮件配置（只需要提醒频率和时间）
       const [configRows] = await pool.query('SELECT reminder_frequency, reminder_time FROM email_config LIMIT 1');
       if (!configRows || configRows.length === 0) {
@@ -37,6 +42,12 @@ class SchedulerService {
 
       const config = configRows[0];
       const { reminder_frequency, reminder_time } = config;
+
+      // 验证配置数据
+      if (!reminder_frequency || !reminder_time) {
+        console.log('邮件配置不完整，跳过邮件提醒任务');
+        return;
+      }
 
       // 停止现有的邮件提醒任务
       this.stopTask('email_reminder');
