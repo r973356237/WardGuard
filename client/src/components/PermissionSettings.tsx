@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Select, Tree, Button, message, Spin, Space, Card, Typography, Tabs } from 'antd';
+import { Select, Tree, Button, message, Spin, Space, Card, Typography } from 'antd';
 import { UserOutlined, KeyOutlined, SettingOutlined } from '@ant-design/icons';
 import type { DataNode } from 'antd/es/tree';
 import type { Key } from 'antd/es/table/interface';
@@ -7,7 +7,6 @@ import apiClient from '../config/axios';
 import { API_ENDPOINTS } from '../config/api';
 
 const { Title, Text } = Typography;
-const { TabPane } = Tabs;
 
 interface User {
   id: number;
@@ -40,7 +39,6 @@ interface ModulePermissions {
 const PermissionSettings: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [userPermissions, setUserPermissions] = useState<ModulePermissions>({});
   const [modulePermissions, setModulePermissions] = useState<ModulePermissions>({});
   const [loading, setLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
@@ -64,37 +62,21 @@ const PermissionSettings: React.FC = () => {
   const fetchUserPermissions = async (userId: number) => {
     try {
       setLoading(true);
-      console.log('开始获取用户权限，用户ID:', userId);
       const response = await apiClient.get(`/api/permissions/user/${userId}`);
-      console.log('获取用户权限响应:', response);
 
       if (response.data.success) {
-        console.log('成功获取用户权限:', response.data);
         const permissions = response.data.data.permissions;
-        // 将后端返回的数组格式转换为前端需要的对象格式
-        const formattedPermissions = Object.entries(permissions).reduce((acc: ModulePermissions, [module, perms]: [string, any]) => {
-          acc[module] = {
-            name: module,
-            permissions: perms
-          };
-          return acc;
-        }, {});
-        console.log('格式化后的用户权限数据:', formattedPermissions);
-        setUserPermissions(formattedPermissions);
         // 设置已授权的权限ID列表
         const grantedPermissions = Object.values(permissions)
-          .flatMap((perms: any) => perms)
-          .filter((permission: Permission) => permission.granted)
-          .map((permission: Permission) => permission.id);
-        console.log('已授权的权限ID列表:', grantedPermissions);
+          .flat()
+          .filter((perm: any) => perm.granted)
+          .map((perm: any) => perm.id);
         setSelectedPermissions(grantedPermissions);
       } else {
-        console.error('获取用户权限失败:', response.data.message);
-        message.error(`获取用户权限失败: ${response.data.message || '未知错误'}`);
+        message.error('获取用户权限失败');
       }
     } catch (error) {
-      console.error('获取用户权限异常:', error);
-      message.error(`获取用户权限失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      message.error('获取用户权限失败');
     } finally {
       setLoading(false);
     }
@@ -103,12 +85,9 @@ const PermissionSettings: React.FC = () => {
   // 获取所有模块权限配置
   const fetchModulePermissions = async () => {
     try {
-      console.log('开始获取模块权限配置，使用API端点:', API_ENDPOINTS.MODULE_PERMISSIONS);
       const response = await apiClient.get(API_ENDPOINTS.MODULE_PERMISSIONS);
-      console.log('获取模块权限配置响应:', response);
       
       if (response.data.success) {
-        console.log('成功获取模块权限配置:', response.data);
         // 将后端返回的数组格式转换为前端需要的对象格式
         const formattedModules = response.data.modules.reduce((acc: ModulePermissions, curr: any) => {
           acc[curr.module] = {
@@ -117,15 +96,12 @@ const PermissionSettings: React.FC = () => {
           };
           return acc;
         }, {});
-        console.log('格式化后的模块权限数据:', formattedModules);
         setModulePermissions(formattedModules);
       } else {
-        console.error('获取模块权限配置失败:', response.data.message);
-        message.error(`获取权限配置失败: ${response.data.message || '未知错误'}`);
+        message.error('获取权限配置失败');
       }
     } catch (error) {
-      console.error('获取模块权限配置异常:', error);
-      message.error(`获取权限配置失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      message.error('获取权限配置失败');
     }
   };
 
@@ -145,21 +121,43 @@ const PermissionSettings: React.FC = () => {
 
   // 保存用户权限
   const handleSavePermissions = async () => {
-    if (!selectedUser) return;
+    if (!selectedUser) {
+      message.error('请先选择用户');
+      return;
+    }
 
     try {
       setSaveLoading(true);
-      const response = await apiClient.put(
-        `/api/users/${selectedUser.id}/permissions`,
-        { permissions: selectedPermissions }
-      );
+      
+      // 构建权限数据
+      const permissionData = {
+        userId: selectedUser.id,
+        permissions: selectedPermissions
+      };
 
+      const response = await apiClient.post(API_ENDPOINTS.USER_PERMISSIONS, permissionData);
+      
       if (response.data.success) {
-        message.success('权限保存成功');
-        fetchUserPermissions(selectedUser.id);
+        message.success('权限设置保存成功');
+        
+        // 触发权限更新事件
+        const permissionUpdateEvent = new CustomEvent('permissionUpdated', {
+          detail: {
+            userId: selectedUser.id,
+            userName: selectedUser.name,
+            updatedBy: 'admin', // 可以从当前用户信息获取
+            timestamp: new Date().toISOString()
+          }
+        });
+        window.dispatchEvent(permissionUpdateEvent);
+        
+        // 重新获取用户权限以确保数据同步
+        await fetchUserPermissions(selectedUser.id);
+      } else {
+        message.error('权限设置保存失败');
       }
     } catch (error) {
-      message.error('保存权限失败');
+      message.error('权限设置保存失败');
     } finally {
       setSaveLoading(false);
     }

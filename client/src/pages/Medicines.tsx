@@ -7,6 +7,7 @@ import moment from 'moment';
 import { API_ENDPOINTS } from '../config/api';
 import { useNavigate } from 'react-router-dom';
 import ImportExportButtons from '../components/ImportExportButtons';
+import CollapsibleFilter from '../components/CollapsibleFilter';
 
 interface Medicine {
   id: number;
@@ -73,7 +74,6 @@ const Medicines: React.FC = () => {
       setMedicines(response.data.data);
     } catch (error) {
       message.error('获取药品列表失败');
-      console.error('Error fetching medicines:', error);
     } finally {
       setLoading(false);
     }
@@ -130,9 +130,8 @@ const Medicines: React.FC = () => {
       message.success('删除药品成功');
       fetchMedicines(); // 重新获取数据
     } catch (error) {
-      message.error('删除药品失败，请重试');
-      console.error('Error deleting medicine:', error);
-    }
+        message.error('删除失败');
+      }
   };
 
   // 提交表单（添加或编辑）
@@ -158,11 +157,10 @@ const Medicines: React.FC = () => {
       modalForm.resetFields();
       fetchMedicines(); // 重新获取数据
     } catch (error) {
-      message.error(modalType === 'add' ? '添加药品失败，请重试' : '更新药品信息失败，请重试');
-      console.error('Error submitting medicine:', error);
-    } finally {
-      setSubmitLoading(false);
-    }
+        message.error(modalType === 'add' ? '添加失败' : '更新失败');
+      } finally {
+        setSubmitLoading(false);
+      }
   };
 
   // 取消模态框
@@ -517,34 +515,42 @@ const Medicines: React.FC = () => {
         </Space>
       }
     >
-      <Form<typeof searchParams> form={form} onValuesChange={handleSearch} layout="inline" style={{ marginBottom: 16, display: 'flex', alignItems: 'flex-end', gap: 8, width: '100%', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 4, flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
-          <Form.Item name="medicine_name" label="药品名称" style={{ minWidth: 180, flex: 1 }}>
-            <Input placeholder="请输入药品名称" style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="storage_location" label="存储位置" style={{ minWidth: 180, flex: 1 }}>
-            <Input placeholder="请输入存储位置" style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="production_date" label="生产日期" style={{ minWidth: 180, flex: 1 }}>
-            <DatePicker format="YYYY-MM-DD" onChange={date => date && setSearchParams(prev => ({...prev, production_date: date.format('YYYY-MM-DD')}))} style={{ width: '100%' }} />
-          </Form.Item>
-          <div style={{ display: 'flex', gap: 4, flex: 1, minWidth: 0 }}>
-            <Form.Item name="expiration_start" label="过期时间" style={{ margin: 0, minWidth: 0 }}>
-              <DatePicker format="YYYY-MM-DD" onChange={date => date && setSearchParams(prev => ({...prev, expiration_start: date.format('YYYY-MM-DD')}))} style={{ width: '100%' }} />
-            </Form.Item>
-            <Form.Item name="expiration_end" label="至" style={{ margin: 0, minWidth: 0 }}>
-              <DatePicker format="YYYY-MM-DD" onChange={date => date && setSearchParams(prev => ({...prev, expiration_end: date.format('YYYY-MM-DD')}))} style={{ width: '100%' }} />
-            </Form.Item>
-          </div>
-        </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, whiteSpace: 'nowrap', minWidth: '240px', flexShrink: 0 }}>
-          <Button type="default" onClick={handleClearFilters}>清空筛选条件</Button>
+      <CollapsibleFilter
+        form={form}
+        onValuesChange={handleSearch}
+        onClear={handleClearFilters}
+        extraActions={
           <Button type="primary" onClick={handleExpiredMedicines}>查询已过期药品</Button>
-        </div>
-        <Form.Item style={{ display: 'none' }}>
-          <Button type="primary" htmlType="submit">查询</Button>
+        }
+      >
+        <Form.Item name="medicine_name" label="药品名称">
+          <Input placeholder="请输入药品名称" />
         </Form.Item>
-      </Form>
+        <Form.Item name="storage_location" label="存储位置">
+          <Input placeholder="请输入存储位置" />
+        </Form.Item>
+        <Form.Item name="production_date" label="生产日期">
+          <DatePicker 
+            format="YYYY-MM-DD" 
+            onChange={date => date && setSearchParams(prev => ({...prev, production_date: date.format('YYYY-MM-DD')}))} 
+            style={{ width: '100%' }} 
+          />
+        </Form.Item>
+        <Form.Item name="expiration_start" label="过期开始时间">
+          <DatePicker 
+            format="YYYY-MM-DD" 
+            onChange={date => date && setSearchParams(prev => ({...prev, expiration_start: date.format('YYYY-MM-DD')}))} 
+            style={{ width: '100%' }} 
+          />
+        </Form.Item>
+        <Form.Item name="expiration_end" label="过期结束时间">
+          <DatePicker 
+            format="YYYY-MM-DD" 
+            onChange={date => date && setSearchParams(prev => ({...prev, expiration_end: date.format('YYYY-MM-DD')}))} 
+            style={{ width: '100%' }} 
+          />
+        </Form.Item>
+      </CollapsibleFilter>
       <Spin spinning={loading} tip="加载中...">
         <Table 
           dataSource={displayMedicines} 

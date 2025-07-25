@@ -7,6 +7,7 @@ import apiClient from '../config/axios';
 import moment from 'moment';
 import { API_ENDPOINTS } from '../config/api';
 import ImportExportButtons from '../components/ImportExportButtons';
+import CollapsibleFilter from '../components/CollapsibleFilter';
 
 interface MedicalExamination {
   id: number;
@@ -81,7 +82,6 @@ const MedicalExaminations: React.FC = () => {
       }
     } catch (error) {
       message.error('获取体检记录失败');
-      console.error('Error fetching examinations:', error);
     } finally {
       setLoading(false);
     }
@@ -160,7 +160,6 @@ const MedicalExaminations: React.FC = () => {
         message.error('删除失败');
       }
     } catch (error) {
-      console.error('Error deleting examination:', error);
       message.error('删除失败');
     }
   };
@@ -193,7 +192,6 @@ const MedicalExaminations: React.FC = () => {
         message.error(modalType === 'add' ? '添加失败' : '更新失败');
       }
     } catch (error) {
-      console.error('Error submitting examination:', error);
       message.error(modalType === 'add' ? '添加失败' : '更新失败');
     } finally {
       setSubmitLoading(false);
@@ -419,42 +417,37 @@ const MedicalExaminations: React.FC = () => {
         </Space>
       }
     >
-      <Form<typeof searchParams> 
-        form={form} 
-        onValuesChange={handleSearch} 
-        layout="inline" 
-        style={{ marginBottom: 16, display: 'flex', alignItems: 'flex-end', gap: 16, width: '100%', flexWrap: 'wrap' }}
-      >
-        <div style={{ display: 'flex', gap: 8, flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
-          <Form.Item name="employee_name" label="员工姓名" style={{ minWidth: 180, flex: 1 }}>
-            <Input placeholder="请输入员工姓名" />
-          </Form.Item>
-          <Form.Item name="examination_date" label="体检日期" style={{ minWidth: 180, flex: 1 }}>
-            <DatePicker 
-              format="YYYY-MM-DD" 
-              style={{ width: '100%' }}
-              onChange={date => date && setSearchParams(prev => ({
-                ...prev, 
-                examination_date: date.format('YYYY-MM-DD')
-              }))} 
-            />
-          </Form.Item>
-          <Form.Item name="audiometry_result" label="电测听结果" style={{ minWidth: 180, flex: 1 }}>
-            <Input placeholder="请输入电测听结果" />
-          </Form.Item>
-          <Form.Item name="dust_examination_result" label="粉尘结果" style={{ minWidth: 180, flex: 1 }}>
-            <Input placeholder="请输入粉尘结果" />
-          </Form.Item>
-        </div>
-        <Space>
-          <Button type="default" onClick={handleClearFilters}>
-            清空筛选条件
-          </Button>
+      <CollapsibleFilter
+        form={form}
+        onValuesChange={handleSearch}
+        onClear={handleClearFilters}
+        maxVisibleItems={2}
+        extraActions={
           <Button type="primary" onClick={handleFilterAbnormalRecords}>
             筛选异常记录
           </Button>
-        </Space>
-      </Form>
+        }
+      >
+        <Form.Item name="employee_name" label="员工姓名">
+          <Input placeholder="请输入员工姓名" />
+        </Form.Item>
+        <Form.Item name="examination_date" label="体检日期">
+          <DatePicker 
+            format="YYYY-MM-DD" 
+            style={{ width: '100%' }}
+            onChange={date => date && setSearchParams(prev => ({
+              ...prev, 
+              examination_date: date.format('YYYY-MM-DD')
+            }))} 
+          />
+        </Form.Item>
+        <Form.Item name="audiometry_result" label="电测听结果">
+          <Input placeholder="请输入电测听结果" />
+        </Form.Item>
+        <Form.Item name="dust_examination_result" label="粉尘结果">
+          <Input placeholder="请输入粉尘结果" />
+        </Form.Item>
+      </CollapsibleFilter>
 
       <Table 
         dataSource={displayExaminations} 

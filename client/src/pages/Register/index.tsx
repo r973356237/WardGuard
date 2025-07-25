@@ -16,8 +16,7 @@ const RegisterPage: React.FC = () => {
       message.success('注册成功，请登录');
       navigate('/login');
     } catch (error) {
-      console.error('注册失败:', error);
-      message.error('注册失败，请稍后重试');
+      message.error('注册失败，请重试');
     } finally {
       setLoading(false);
     }

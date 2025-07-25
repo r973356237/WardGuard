@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
-import { Layout as AntLayout, Dropdown, Avatar, Menu, Button, Typography } from 'antd';
-import { MenuUnfoldOutlined, MenuFoldOutlined } from '@ant-design/icons';
+import { Layout as AntLayout, Dropdown, Avatar, Menu } from 'antd';
 import LoginPage from './pages/Login';
 import RegisterPage from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -11,15 +10,16 @@ import Employees from './pages/Employees';
 import Medicines from './pages/Medicines';
 import Supplies from './pages/Supplies';
 import MedicalExaminations from './pages/MedicalExaminations';
-import Settings from './pages/Settings';
-import ShiftCalendarPage from './pages/ShiftCalendar';
+import EmailSettings from './pages/EmailSettings';
 import Sidebar from './components/Sidebar';
+import PermissionGuard from './components/PermissionGuard';
+import PermissionSettings from './components/PermissionSettings';
 import OperationRecords from './components/OperationRecords';
 import { buildApiUrl, API_ENDPOINTS } from './config/api';
 import './App.css';
 
 // 布局组件
-const MainLayout: React.FC<{ systemName: string }> = ({ systemName }) => {
+const MainLayout: React.FC = () => {
   const location = useLocation();
 
   // 路由标题映射
@@ -35,12 +35,10 @@ const MainLayout: React.FC<{ systemName: string }> = ({ systemName }) => {
     '/supplies/operation-records': '物资操作记录',
     '/medical-examinations': '体检记录管理',
     '/medical-examinations/operation-records': '体检记录操作记录',
-    '/settings': '系统设置',
-    '/dashboard': '仪表盘',
-    '/shift-calendar': '倒班日历'
+    '/email-settings': '邮件提醒设置',
+    '/permissions': '权限设置',
+    '/dashboard': '仪表盘'
   };
-  const [collapsed, setCollapsed] = useState(false);
-  const { Title } = Typography;
 
   // 模拟用户数据 - 实际应用中应从认证系统获取
   interface User {
@@ -79,10 +77,9 @@ const MainLayout: React.FC<{ systemName: string }> = ({ systemName }) => {
           throw new Error('获取用户信息失败');
         }
       } catch (error) {
-        console.error('获取用户信息失败:', error);
-        // 清除无效token并跳转登录
+        // 获取用户信息失败时，清除本地存储并跳转到登录页
         localStorage.removeItem('token');
-        setUser(null);
+        localStorage.removeItem('user');
       } finally {
         setLoading(false);
       }
@@ -106,20 +103,33 @@ const MainLayout: React.FC<{ systemName: string }> = ({ systemName }) => {
       <AntLayout.Sider
         theme="dark"
         width={200}
-        collapsed={collapsed}
-        onCollapse={setCollapsed}
         style={{ boxShadow: '2px 0 8px rgba(0, 0, 0, 0.06)' }}
       >
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', padding: '16px', borderBottom: '1px solid #f0f0f0', color: 'white' }}>
-            <Button
-              type="text"
-              icon={collapsed ? <MenuUnfoldOutlined style={{ color: 'white' }} /> : <MenuFoldOutlined style={{ color: 'white' }} />}
-              onClick={() => setCollapsed(!collapsed)}
-              style={{ marginRight: 8, color: 'white' }}
+          {/* Logo 区域 */}
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            padding: '20px 16px', 
+            borderBottom: '1px solid #434343', 
+            color: 'white',
+            minHeight: '80px',
+            maxHeight: '80px'
+          }}>
+            <img 
+              src="/logo.png" 
+              alt="Logo" 
+              style={{ 
+                maxWidth: '160px',
+                width: 'auto',
+                height: 'auto',
+                maxHeight: '60px',
+                objectFit: 'contain'
+              }} 
             />
-            <Title level={5} style={{ margin: 0, display: collapsed ? 'none' : 'block', color: 'white' }}>{systemName}</Title>
           </div>
+          
           <Sidebar />
         </div>
       </AntLayout.Sider>
@@ -163,45 +173,6 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 const App: React.FC = () => {
-  const [systemName, setSystemName] = useState('WardGuard');
-
-  useEffect(() => {
-    const fetchSystemName = async () => {
-      try {
-        const response = await fetch(buildApiUrl(API_ENDPOINTS.SYSTEM_NAME));
-        if (!response.ok) {
-          throw new Error('获取系统名称失败');
-        }
-        const data = await response.json();
-        setSystemName(data.systemName);
-      } catch (error) {
-        console.error('获取系统名称失败:', error);
-      }
-    };
-
-    fetchSystemName();
-  }, []);
-
-  const handleSetSystemName = async (name: string) => {
-    try {
-      const response = await fetch(buildApiUrl(API_ENDPOINTS.SYSTEM_NAME), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ systemName: name })
-      });
-
-      if (!response.ok) {
-        throw new Error('设置系统名称失败');
-      }
-
-      setSystemName(name);
-    } catch (error) {
-      console.error('设置系统名称失败:', error);
-    }
-  };
-
   return (
     <Router>
       <Routes>
@@ -211,54 +182,98 @@ const App: React.FC = () => {
           path="/"
           element={
             <ProtectedRoute>
-              <MainLayout systemName={systemName} />
+              <MainLayout />
             </ProtectedRoute>
           }
         >
           <Route index element={<Dashboard />} />
-          <Route path="users" element={<Users />} />
-          <Route path="user-operation-records/:userId?" element={<UserOperationRecords />} />
-          <Route path="employees" element={<Employees />} />
+          <Route path="users" element={
+            <PermissionGuard adminOnly={true}>
+              <Users />
+            </PermissionGuard>
+          } />
+          <Route path="user-operation-records/:userId?" element={
+            <PermissionGuard adminOnly={true}>
+              <UserOperationRecords />
+            </PermissionGuard>
+          } />
+          <Route path="employees" element={
+            <PermissionGuard requiredPermission="employees:view">
+              <Employees />
+            </PermissionGuard>
+          } />
           <Route path="employees/operation-records" element={
-            <OperationRecords 
-              targetType="employee" 
-              title="员工操作记录" 
-              backPath="/employees" 
-              backButtonText="返回员工管理" 
-            />
+            <PermissionGuard requiredPermission="employees:view">
+              <OperationRecords 
+                targetType="employee" 
+                title="员工操作记录" 
+                backPath="/employees" 
+                backButtonText="返回员工管理" 
+              />
+            </PermissionGuard>
           } />
-          <Route path="medicines" element={<Medicines />} />
+          <Route path="medicines" element={
+            <PermissionGuard requiredPermission="medicines:view">
+              <Medicines />
+            </PermissionGuard>
+          } />
           <Route path="medicines/operation-records" element={
-            <OperationRecords 
-              targetType="medicine" 
-              title="药品操作记录" 
-              backPath="/medicines" 
-              backButtonText="返回药品管理" 
-            />
+            <PermissionGuard requiredPermission="medicines:view">
+              <OperationRecords 
+                targetType="medicine" 
+                title="药品操作记录" 
+                backPath="/medicines" 
+                backButtonText="返回药品管理" 
+              />
+            </PermissionGuard>
           } />
-          <Route path="supplies" element={<Supplies />} />
+          <Route path="supplies" element={
+            <PermissionGuard requiredPermission="supplies:view">
+              <Supplies />
+            </PermissionGuard>
+          } />
           <Route path="supplies/operation-records" element={
-            <OperationRecords 
-              targetType="supply" 
-              title="物资操作记录" 
-              backPath="/supplies" 
-              backButtonText="返回物资管理" 
-            />
+            <PermissionGuard requiredPermission="supplies:view">
+              <OperationRecords 
+                targetType="supply" 
+                title="物资操作记录" 
+                backPath="/supplies" 
+                backButtonText="返回物资管理" 
+              />
+            </PermissionGuard>
           } />
-          <Route path="medical-examinations" element={<MedicalExaminations />} />
+          <Route path="medical-examinations" element={
+            <PermissionGuard requiredPermission="medical_examinations:view">
+              <MedicalExaminations />
+            </PermissionGuard>
+          } />
           <Route path="medical-examinations/operation-records" element={
-            <OperationRecords 
-              targetType="medical_examination" 
-              title="体检记录操作记录" 
-              backPath="/medical-examinations" 
-              backButtonText="返回体检记录管理" 
-            />
+            <PermissionGuard requiredPermission="medical_examinations:view">
+              <OperationRecords 
+                targetType="medical_examination" 
+                title="体检记录操作记录" 
+                backPath="/medical-examinations" 
+                backButtonText="返回体检记录管理" 
+              />
+            </PermissionGuard>
           } />
-          <Route path="shift-calendar" element={<ShiftCalendarPage />} />
           <Route 
-            path="settings"
-            element={<Settings systemName={systemName} setSystemName={handleSetSystemName} />}
+            path="email-settings"
+            element={
+              <PermissionGuard adminOnly={true}>
+                <EmailSettings />
+              </PermissionGuard>
+            }
           />
+          <Route 
+            path="permissions"
+            element={
+              <PermissionGuard adminOnly={true}>
+                <PermissionSettings />
+              </PermissionGuard>
+            }
+          />
+
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

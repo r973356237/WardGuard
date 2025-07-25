@@ -14,8 +14,7 @@ import {
   employeeTemplate,
   medicineTemplate,
   supplyTemplate,
-  medicalExaminationTemplate,
-  fieldMappings
+  medicalExaminationTemplate
 } from '../utils/importExport';
 
 interface ImportExportProps {
@@ -121,13 +120,12 @@ const ImportExportButtons: React.FC<ImportExportProps> = ({
         message.error('数据验证失败，请检查文件格式');
       }
     } catch (error) {
-      console.error('文件读取失败:', error);
-      message.error('文件读取失败，请检查文件格式');
-      setImportData([]);
-      setValidationErrors([]);
-    } finally {
-      setUploading(false);
-    }
+        message.error('文件读取失败');
+        setImportData([]);
+        setValidationErrors([]);
+      } finally {
+        setUploading(false);
+      }
   };
 
   // 确认导入
@@ -178,8 +176,7 @@ const ImportExportButtons: React.FC<ImportExportProps> = ({
         message.error(response.data.message || '导入失败');
       }
     } catch (error: any) {
-      console.error('导入失败:', error);
-      message.error(error.response?.data?.message || '导入失败，请重试');
+      message.error('导入失败');
     } finally {
       setUploading(false);
     }

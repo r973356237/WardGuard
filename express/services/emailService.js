@@ -121,84 +121,97 @@ class EmailService {
       return null; // 没有过期物资，不发送邮件
     }
 
-    let content = template || `
-      <h2>【系统提醒】物资/药品过期通知</h2>
-      <p>您好，</p>
-      <p>系统检测到以下物资或药品已过期，请及时处理：</p>
-    `;
-
+    // 构建过期物品列表（表格形式）
+    let expiredItemsList = '';
+    let itemIndex = 1; // 序号计数器
+    
     if (supplies.length > 0) {
-      content += `
-        <h3>过期物资 (${supplies.length}项)</h3>
-        <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 100%;">
-          <thead>
-            <tr style="background-color: #f5f5f5;">
-              <th>物资名称</th>
-              <th>过期日期</th>
-              <th>剩余数量</th>
-              <th>单位</th>
-            </tr>
-          </thead>
-          <tbody>
-      `;
+      expiredItemsList += `<h3>过期物资 (${supplies.length}项)</h3>\n`;
+      expiredItemsList += `<table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">\n`;
+      expiredItemsList += `<thead>\n`;
+      expiredItemsList += `<tr style="background-color: #f5f5f5;">\n`;
+      expiredItemsList += `<th style="text-align: center;">序号</th>\n`;
+      expiredItemsList += `<th>物资名称</th>\n`;
+      expiredItemsList += `<th style="text-align: center;">过期日期</th>\n`;
+      expiredItemsList += `<th style="text-align: center;">剩余数量</th>\n`;
+      expiredItemsList += `<th style="text-align: center;">单位</th>\n`;
+      expiredItemsList += `</tr>\n`;
+      expiredItemsList += `</thead>\n`;
+      expiredItemsList += `<tbody>\n`;
       
       supplies.forEach(item => {
-        content += `
-          <tr>
-            <td>${item.name}</td>
-            <td>${item.expiry_date}</td>
-            <td>${item.quantity}</td>
-            <td>${item.unit}</td>
-          </tr>
-        `;
+        // 格式化日期为YYYY-MM-DD
+        const expirationDate = new Date(item.expiry_date);
+        const formattedDate = `${expirationDate.getFullYear()}-${(expirationDate.getMonth() + 1).toString().padStart(2, '0')}-${expirationDate.getDate().toString().padStart(2, '0')}`;
+        
+        expiredItemsList += `<tr>\n`;
+        expiredItemsList += `<td style="text-align: center;">${itemIndex}</td>\n`;
+        expiredItemsList += `<td>${item.name}</td>\n`;
+        expiredItemsList += `<td style="text-align: center;">${formattedDate}</td>\n`;
+        expiredItemsList += `<td style="text-align: center;">${item.quantity}</td>\n`;
+        expiredItemsList += `<td style="text-align: center;">${item.unit}</td>\n`;
+        expiredItemsList += `</tr>\n`;
+        itemIndex++;
       });
       
-      content += `
-          </tbody>
-        </table>
-        <br>
-      `;
+      expiredItemsList += `</tbody>\n`;
+      expiredItemsList += `</table>\n`;
     }
 
     if (medicines.length > 0) {
-      content += `
-        <h3>过期药品 (${medicines.length}项)</h3>
-        <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 100%;">
-          <thead>
-            <tr style="background-color: #f5f5f5;">
-              <th>药品名称</th>
-              <th>过期日期</th>
-              <th>剩余数量</th>
-              <th>单位</th>
-            </tr>
-          </thead>
-          <tbody>
-      `;
+      expiredItemsList += `<h3>过期药品 (${medicines.length}项)</h3>\n`;
+      expiredItemsList += `<table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">\n`;
+      expiredItemsList += `<thead>\n`;
+      expiredItemsList += `<tr style="background-color: #f5f5f5;">\n`;
+      expiredItemsList += `<th style="text-align: center;">序号</th>\n`;
+      expiredItemsList += `<th>药品名称</th>\n`;
+      expiredItemsList += `<th style="text-align: center;">过期日期</th>\n`;
+      expiredItemsList += `<th style="text-align: center;">剩余数量</th>\n`;
+      expiredItemsList += `<th style="text-align: center;">单位</th>\n`;
+      expiredItemsList += `</tr>\n`;
+      expiredItemsList += `</thead>\n`;
+      expiredItemsList += `<tbody>\n`;
       
       medicines.forEach(item => {
-        content += `
-          <tr>
-            <td>${item.name}</td>
-            <td>${item.expiry_date}</td>
-            <td>${item.quantity}</td>
-            <td>${item.unit}</td>
-          </tr>
-        `;
+        // 格式化日期为YYYY-MM-DD
+        const expirationDate = new Date(item.expiry_date);
+        const formattedDate = `${expirationDate.getFullYear()}-${(expirationDate.getMonth() + 1).toString().padStart(2, '0')}-${expirationDate.getDate().toString().padStart(2, '0')}`;
+        
+        expiredItemsList += `<tr>\n`;
+        expiredItemsList += `<td style="text-align: center;">${itemIndex}</td>\n`;
+        expiredItemsList += `<td>${item.name}</td>\n`;
+        expiredItemsList += `<td style="text-align: center;">${formattedDate}</td>\n`;
+        expiredItemsList += `<td style="text-align: center;">${item.quantity}</td>\n`;
+        expiredItemsList += `<td style="text-align: center;">${item.unit}</td>\n`;
+        expiredItemsList += `</tr>\n`;
+        itemIndex++;
       });
       
-      content += `
-          </tbody>
-        </table>
-        <br>
-      `;
+      expiredItemsList += `</tbody>\n`;
+      expiredItemsList += `</table>\n`;
     }
 
-    content += `
-      <p>请及时处理以上过期物资和药品，确保库存管理的准确性。</p>
-      <p>此邮件由系统自动发送，请勿回复。</p>
-      <hr>
-      <p style="color: #666; font-size: 12px;">发送时间：${new Date().toLocaleString('zh-CN')}</p>
-    `;
+    // 格式化当前日期为YYYY-MM-DD
+    const today = new Date();
+    const formattedToday = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
+
+    // 使用模板并替换变量
+    let content = template || `<p>尊敬的管理员：</p>
+
+<p>您好！系统检测到以下物资或药品已过期，请及时处理：</p>
+
+{EXPIRED_ITEMS}
+
+<p>请登录系统查看详细信息并及时处理。</p>
+
+<p>此邮件由系统自动发送，请勿回复。</p>
+
+<p>系统管理员<br>{CURRENT_DATE}</p>`;
+
+    // 替换变量
+    content = content
+      .replace('{EXPIRED_ITEMS}', expiredItemsList)
+      .replace('{CURRENT_DATE}', formattedToday);
 
     return content;
   }

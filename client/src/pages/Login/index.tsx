@@ -22,8 +22,7 @@ const LoginPage: React.FC = () => {
       message.success('登录成功');
       navigate('/');
     } catch (error) {
-      console.error('登录失败:', error);
-      message.error('用户名或密码错误');
+      message.error('登录失败，请检查用户名和密码');
     } finally {
       setLoading(false);
     }

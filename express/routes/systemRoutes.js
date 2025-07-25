@@ -1,8 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const { 
-  getSystemName, 
-  setSystemName, 
   getEmailConfig, 
   saveEmailConfig,
   getSmtpConfig,
@@ -11,12 +9,6 @@ const {
   sendTemplateTestEmail,
   databaseDiagnostic
 } = require('../controllers/systemController');
-
-// 获取系统名称
-router.get('/system-name', getSystemName);
-
-// 设置系统名称
-router.post('/system-name', setSystemName);
 
 // 获取邮件配置
 router.get('/email-config', getEmailConfig);

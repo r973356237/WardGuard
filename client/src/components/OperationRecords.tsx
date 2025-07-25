@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Timeline, Card, Button, Select, Pagination, Spin, Empty, Modal, Tag, Descriptions, Typography } from 'antd';
+import { Timeline, Card, Button, Select, Pagination, Spin, Empty, Modal, Tag, Descriptions, Typography, message } from 'antd';
 import { ClockCircleOutlined, UserOutlined, EditOutlined, DeleteOutlined, PlusOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { buildApiUrl, API_ENDPOINTS } from '../config/api';
 import { useNavigate } from 'react-router-dom';
@@ -84,10 +84,10 @@ const OperationRecords: React.FC<OperationRecordsProps> = ({
           totalPages: data.pagination.totalPages
         });
       } else {
-        throw new Error('获取操作记录失败');
-      }
-    } catch (error) {
-      console.error('获取操作记录失败:', error);
+          message.error('获取操作记录失败');
+        }
+      } catch (error) {
+        message.error('获取操作记录失败');
     } finally {
       setLoading(false);
     }
@@ -118,10 +118,10 @@ const OperationRecords: React.FC<OperationRecordsProps> = ({
         setCurrentRecord(data.data);
         setDetailVisible(true);
       } else {
-        throw new Error('获取操作记录详情失败');
-      }
-    } catch (error) {
-      console.error('获取操作记录详情失败:', error);
+          message.error('获取操作记录详情失败');
+        }
+      } catch (error) {
+        message.error('获取操作记录详情失败');
     }
   };
 

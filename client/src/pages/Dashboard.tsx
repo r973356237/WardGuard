@@ -27,14 +27,10 @@ const fetchWithRetry = async (endpoint: string, maxRetries = 3): Promise<any> =>
       const response = await apiClient.get(endpoint);
       return response;
     } catch (error) {
-      console.warn(`API请求失败 (${endpoint}), 重试 ${i + 1}/${maxRetries + 1}:`, error);
-      
       if (i === maxRetries) {
         throw error;
       }
-      
-      // 指数退避：等待时间逐渐增加
-      await delay(Math.pow(2, i) * 1000);
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
   }
 };
@@ -108,7 +104,7 @@ const Dashboard: React.FC = () => {
 
   // 跳转到邮件设置页面
   const goToEmailSettings = () => {
-    navigate('/settings');
+    navigate('/email-settings');
   };
 
   const fetchDashboardData = useCallback(async (isRetry = false) => {
@@ -123,12 +119,10 @@ const Dashboard: React.FC = () => {
       }
 
       // 使用新的仪表盘统计API，只需要一个请求
-      console.log('正在获取仪表盘统计数据...');
       const response = await fetchWithRetry(API_ENDPOINTS.DASHBOARD_STATS, 3);
       
       if (response.data?.success && response.data?.data) {
         const dashboardStats = response.data.data;
-        console.log('仪表盘统计数据获取成功:', dashboardStats);
         
         // 直接使用后端返回的统计数据
         setDashboardData(dashboardStats);
@@ -139,7 +133,6 @@ const Dashboard: React.FC = () => {
       }
 
     } catch (error) {
-      console.error('获取仪表盘数据失败:', error);
       setError('获取仪表盘数据失败，请检查网络连接或稍后重试');
       message.error('获取仪表盘数据失败');
     } finally {

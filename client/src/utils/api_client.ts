@@ -60,8 +60,6 @@ class ApiClient {
    * 处理API错误
    */
   private static handleError(error: any): never {
-    console.error('API请求错误:', error);
-    
     if (error.response?.data?.error) {
       const apiError = error.response.data.error;
       message.error(apiError.message);
@@ -96,7 +94,7 @@ class ApiClient {
       const response = await apiClient.post(url, data);
       return this.handleResponse<T>(response);
     } catch (error) {
-      return this.handleError(error);
+      this.handleError(error);
     }
   }
 
@@ -108,7 +106,7 @@ class ApiClient {
       const response = await apiClient.put(url, data);
       return this.handleResponse<T>(response);
     } catch (error) {
-      return this.handleError(error);
+      this.handleError(error);
     }
   }
 
@@ -120,7 +118,7 @@ class ApiClient {
       const response = await apiClient.delete(url);
       return this.handleResponse<T>(response);
     } catch (error) {
-      return this.handleError(error);
+      this.handleError(error);
     }
   }
 }

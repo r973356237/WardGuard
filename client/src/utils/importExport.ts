@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+import { message } from 'antd';
 
 // 导出数据到Excel
 export const exportToExcel = (data: any[], filename: string, sheetName: string = 'Sheet1') => {
@@ -22,7 +23,7 @@ export const exportToExcel = (data: any[], filename: string, sheetName: string =
     
     return true;
   } catch (error) {
-    console.error('导出Excel失败:', error);
+    message.error('导出Excel失败');
     return false;
   }
 };

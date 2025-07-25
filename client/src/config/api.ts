@@ -26,11 +26,11 @@ export const API_ENDPOINTS = {
   USER_LOGIN: '/api/users/login',
   USER_REGISTER: '/api/users/register',
   USER_ME: '/api/users/me',
+  USER_INFO: '/api/users/me',
   USER_LIST: '/api/users',
   USERS: '/api/users',
   
   // 系统相关
-  SYSTEM_NAME: '/api/system-name',
   SYSTEM_HEALTH: '/api/health',
   SYSTEM: '/api/system',
   
@@ -58,6 +58,8 @@ export const API_ENDPOINTS = {
   
   // 权限相关
   MODULE_PERMISSIONS: '/api/modules/permissions',
+  USER_PERMISSIONS: '/api/user-permissions',
+  PERMISSIONS: '/api/permissions',
 };
 
 // 构建完整的 API URL

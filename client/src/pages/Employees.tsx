@@ -7,6 +7,7 @@ import moment from 'moment';
 import { API_ENDPOINTS } from '../config/api';
 import { useNavigate } from 'react-router-dom';
 import ImportExportButtons from '../components/ImportExportButtons';
+import CollapsibleFilter from '../components/CollapsibleFilter';
 
 const { Option } = Select;
 
@@ -76,8 +77,7 @@ const Employees: React.FC = () => {
       const response = await apiClient.get<ApiResponse>(API_ENDPOINTS.EMPLOYEES);
       setEmployees(response.data.data);
     } catch (error) {
-      message.error('获取员工信息失败，请重试');
-      console.error('Error fetching employees:', error);
+      message.error('获取员工列表失败');
     } finally {
       setLoading(false);
     }
@@ -151,9 +151,8 @@ const Employees: React.FC = () => {
       message.success('删除员工成功');
       fetchEmployees(); // 重新获取数据
     } catch (error) {
-      message.error('删除员工失败，请重试');
-      console.error('Error deleting employee:', error);
-    }
+        message.error('删除失败');
+      }
   };
 
   // 提交表单（添加或编辑）
@@ -181,11 +180,10 @@ const Employees: React.FC = () => {
       modalForm.resetFields();
       fetchEmployees(); // 重新获取数据
     } catch (error) {
-      message.error(modalType === 'add' ? '添加员工失败，请重试' : '更新员工信息失败，请重试');
-      console.error('Error submitting employee:', error);
-    } finally {
-      setSubmitLoading(false);
-    }
+        message.error(modalType === 'add' ? '添加失败' : '更新失败');
+      } finally {
+        setSubmitLoading(false);
+      }
   };
 
   // 取消模态框
@@ -430,47 +428,37 @@ const Employees: React.FC = () => {
         </Space>
       }
     >
-      <Form<SearchParams> 
-        form={form} // 关联表单实例
-        onValuesChange={handleSearch} 
-        layout="inline" 
-        style={{ marginBottom: 16, display: 'flex', alignItems: 'flex-end', gap: 16, width: '100%', flexWrap: 'wrap' }}
+      <CollapsibleFilter
+        form={form}
+        onValuesChange={handleSearch}
+        onClear={handleClearFilters}
+        maxVisibleItems={3}
       >
-        <div style={{ display: 'flex', gap: 8, flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
-          <Form.Item name="name" label="姓名" style={{ minWidth: 180, flex: 1 }}>
-            <Input placeholder="请输入姓名" />
-          </Form.Item>
-          <Form.Item name="employee_number" label="工号" style={{ minWidth: 180, flex: 1 }}>
-            <Input placeholder="请输入工号" />
-          </Form.Item>
-          <Form.Item name="workshop" label="车间" style={{ minWidth: 180, flex: 1 }}>
-            <Input placeholder="请输入车间" />
-          </Form.Item>
-          <Form.Item name="gender" label="性别" style={{ minWidth: 180, flex: 1 }}>
-            <Input placeholder="请输入性别" />
-          </Form.Item>
-          <Form.Item name="position" label="职位" style={{ minWidth: 180, flex: 1 }}>
-            <Input placeholder="请输入职位" />
-          </Form.Item>
-          <Form.Item name="status" label="状态" style={{ minWidth: 180, flex: 1 }}>
-            <Select placeholder="请选择状态" allowClear>
-              <Option value="在职">在职</Option>
-              <Option value="离职">离职</Option>
-              <Option value="调岗">调岗</Option>
-              <Option value="休假">休假</Option>
-              <Option value="停职">停职</Option>
-            </Select>
-          </Form.Item>
-        </div>
-        <Space>
-          <Button type="default" onClick={handleClearFilters}>
-            清空筛选条件
-          </Button>
-          <Form.Item style={{ display: 'none' }}>
-            <Button type="primary" htmlType="submit">查询</Button>
-          </Form.Item>
-        </Space>
-      </Form>
+        <Form.Item name="name" label="姓名">
+          <Input placeholder="请输入姓名" />
+        </Form.Item>
+        <Form.Item name="employee_number" label="工号">
+          <Input placeholder="请输入工号" />
+        </Form.Item>
+        <Form.Item name="workshop" label="车间">
+          <Input placeholder="请输入车间" />
+        </Form.Item>
+        <Form.Item name="gender" label="性别">
+          <Input placeholder="请输入性别" />
+        </Form.Item>
+        <Form.Item name="position" label="职位">
+          <Input placeholder="请输入职位" />
+        </Form.Item>
+        <Form.Item name="status" label="状态">
+          <Select placeholder="请选择状态" allowClear>
+            <Option value="在职">在职</Option>
+            <Option value="离职">离职</Option>
+            <Option value="调岗">调岗</Option>
+            <Option value="休假">休假</Option>
+            <Option value="停职">停职</Option>
+          </Select>
+        </Form.Item>
+      </CollapsibleFilter>
       <Spin spinning={loading} tip="加载中...">
         <Table 
           dataSource={displayEmployees} 

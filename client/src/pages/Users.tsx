@@ -41,7 +41,6 @@ const Users: React.FC = () => {
       }
     } catch (error) {
       message.error('获取用户列表失败');
-      console.error('Error fetching users:', error);
     } finally {
       setLoading(false);
     }
@@ -83,7 +82,6 @@ const Users: React.FC = () => {
         message.error('删除失败');
       }
     } catch (error) {
-      console.error('Error deleting user:', error);
       message.error('删除失败');
     }
   };
@@ -109,7 +107,6 @@ const Users: React.FC = () => {
         message.error(modalType === 'add' ? '添加失败' : '更新失败');
       }
     } catch (error) {
-      console.error('Error submitting user:', error);
       message.error(modalType === 'add' ? '添加失败' : '更新失败');
     } finally {
       setSubmitLoading(false);

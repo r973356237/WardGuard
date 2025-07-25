@@ -95,8 +95,7 @@ export const ROUTES = {
   employees: '/employees',
   supplies: '/supplies',
   medicines: '/medicines',
-  profile: '/profile',
-  settings: '/settings'
+  profile: '/profile'
 };
 
 /**
@@ -106,8 +105,7 @@ export const STORAGE_KEYS = {
   token: 'wardguard_token',
   user: 'wardguard_user',
   theme: 'wardguard_theme',
-  language: 'wardguard_language',
-  settings: 'wardguard_settings'
+  language: 'wardguard_language'
 };
 
 /**

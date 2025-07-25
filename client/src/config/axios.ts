@@ -108,7 +108,10 @@ apiClient.interceptors.response.use(
         // 指数退避延迟
         const delayTime = retryConfig.retryDelay * Math.pow(2, config._retryCount - 1);
         
-        console.log(`🔄 Retrying request (${config._retryCount}/${retryConfig.retries}) after ${delayTime}ms...`);
+        // 开发环境显示重试信息
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`🔄 Retrying request (${config._retryCount}/${retryConfig.retries}) after ${delayTime}ms...`);
+        }
         
         await delay(delayTime);
         return apiClient(config);
@@ -194,7 +197,6 @@ export async function checkServerHealth(): Promise<boolean> {
     const response = await apiClient.get('/health', { timeout: 5000 });
     return response.status === 200;
   } catch (error) {
-    console.warn('服务器健康检查失败:', error);
     return false;
   }
 }
@@ -203,13 +205,10 @@ export async function checkServerHealth(): Promise<boolean> {
 export async function waitForServer(maxAttempts: number = 10, interval: number = 1000): Promise<boolean> {
   for (let i = 0; i < maxAttempts; i++) {
     if (await checkServerHealth()) {
-      console.log('✅ 服务器已就绪');
       return true;
     }
-    console.log(`⏳ 等待服务器就绪... (${i + 1}/${maxAttempts})`);
     await delay(interval);
   }
-  console.error('❌ 服务器启动超时');
   return false;
 }
 
