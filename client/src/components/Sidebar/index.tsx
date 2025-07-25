@@ -148,13 +148,6 @@ const Sidebar: React.FC = () => {
       adminOnly: true, // 用户管理只有管理员可以访问
     },
     {
-      key: '/permissions',
-      icon: <SafetyOutlined />,
-      label: <Link to="/permissions">权限设置</Link>,
-      permission: null,
-      adminOnly: true, // 权限设置只有管理员可以访问
-    },
-    {
       key: '/employees',
       icon: <TeamOutlined />,
       label: <Link to="/employees">员工管理</Link>,
@@ -181,6 +174,13 @@ const Sidebar: React.FC = () => {
       label: <Link to="/medical-examinations">体检记录</Link>,
       permission: 'medical_examinations:view',
       adminOnly: false,
+    },
+    {
+      key: '/permissions',
+      icon: <SafetyOutlined />,
+      label: <Link to="/permissions">权限设置</Link>,
+      permission: null,
+      adminOnly: true, // 权限设置只有管理员可以访问
     },
     {
       key: '/email-settings',

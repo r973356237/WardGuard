@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Timeline, Card, Button, Select, Pagination, Spin, Empty, Modal, Tag, Descriptions, Typography, message } from 'antd';
 import { ClockCircleOutlined, UserOutlined, EditOutlined, DeleteOutlined, PlusOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { buildApiUrl, API_ENDPOINTS } from '../config/api';
@@ -46,6 +46,12 @@ const OperationRecords: React.FC<OperationRecordsProps> = ({
   const [detailVisible, setDetailVisible] = useState(false);
   const [currentRecord, setCurrentRecord] = useState<OperationRecord | null>(null);
 
+  // 使用 useMemo 优化 pagination 相关值
+  const paginationValues = useMemo(() => ({
+    current: pagination.current,
+    pageSize: pagination.pageSize
+  }), [pagination.current, pagination.pageSize]);
+
   // 获取操作记录
   const fetchOperationRecords = useCallback(async () => {
     setLoading(true);
@@ -57,7 +63,7 @@ const OperationRecords: React.FC<OperationRecordsProps> = ({
       }
 
       // 使用用户操作记录端点，支持targetType过滤
-      let url = buildApiUrl(`${API_ENDPOINTS.OPERATION_RECORDS}/user/all?page=${pagination.current}&limit=${pagination.pageSize}`);
+      let url = buildApiUrl(`${API_ENDPOINTS.OPERATION_RECORDS}/user/all?page=${paginationValues.current}&limit=${paginationValues.pageSize}`);
       
       // 如果指定了目标类型，添加到查询参数
       const filterType = selectedTargetType || targetType;
@@ -78,20 +84,20 @@ const OperationRecords: React.FC<OperationRecordsProps> = ({
       const data = await response.json();
       if (data.success) {
         setRecords(data.data);
-        setPagination({
-          ...pagination,
+        setPagination(prev => ({
+          ...prev,
           total: data.pagination.total,
           totalPages: data.pagination.totalPages
-        });
+        }));
       } else {
-          message.error('获取操作记录失败');
-        }
-      } catch (error) {
         message.error('获取操作记录失败');
+      }
+    } catch (error) {
+      message.error('获取操作记录失败');
     } finally {
       setLoading(false);
     }
-  }, [pagination.current, pagination.pageSize, selectedTargetType, targetType, navigate]);
+  }, [paginationValues.current, paginationValues.pageSize, selectedTargetType, targetType, navigate]);
 
   // 获取操作记录详情
   const fetchRecordDetail = async (recordId: number) => {

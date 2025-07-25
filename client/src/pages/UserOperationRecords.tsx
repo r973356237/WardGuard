@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Timeline, Card, Button, Select, Pagination, Spin, Empty, Modal, Tag, Descriptions, Typography, message } from 'antd';
 import { ClockCircleOutlined, UserOutlined, EditOutlined, DeleteOutlined, PlusOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { buildApiUrl, API_ENDPOINTS } from '../config/api';
@@ -35,6 +35,12 @@ const UserOperationRecords: React.FC = () => {
   const [detailVisible, setDetailVisible] = useState(false);
   const [currentRecord, setCurrentRecord] = useState<OperationRecord | null>(null);
 
+  // 使用 useMemo 优化 pagination 相关值
+  const paginationValues = useMemo(() => ({
+    current: pagination.current,
+    pageSize: pagination.pageSize
+  }), [pagination.current, pagination.pageSize]);
+
   // 获取操作记录
   const fetchOperationRecords = useCallback(async () => {
     setLoading(true);
@@ -45,7 +51,7 @@ const UserOperationRecords: React.FC = () => {
         return;
       }
 
-      const url = buildApiUrl(`${API_ENDPOINTS.OPERATION_RECORDS}/user/${userId || 'all'}?page=${pagination.current}&limit=${pagination.pageSize}${targetType ? `&targetType=${targetType}` : ''}`);
+      const url = buildApiUrl(`${API_ENDPOINTS.OPERATION_RECORDS}/user/${userId || 'all'}?page=${paginationValues.current}&limit=${paginationValues.pageSize}${targetType ? `&targetType=${targetType}` : ''}`);
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -59,11 +65,11 @@ const UserOperationRecords: React.FC = () => {
       const data = await response.json();
       if (data.success) {
         setRecords(data.data);
-        setPagination({
-          ...pagination,
+        setPagination(prev => ({
+          ...prev,
           total: data.pagination.total,
           totalPages: data.pagination.totalPages
-        });
+        }));
       } else {
         throw new Error('获取操作记录失败');
       }
@@ -72,7 +78,7 @@ const UserOperationRecords: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [userId, pagination.current, pagination.pageSize, targetType, navigate]);
+  }, [userId, paginationValues.current, paginationValues.pageSize, targetType, navigate]);
 
   // 获取操作记录详情
   const fetchRecordDetail = async (recordId: number) => {
