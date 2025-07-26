@@ -59,8 +59,19 @@ exports.getDashboardStats = async (req, res) => {
         FROM supplies
       `),
       
-      // 邮件提醒配置
-      pool.execute('SELECT id, recipient_email, reminder_frequency, reminder_time, weekly_day, monthly_day, updated_at FROM email_config LIMIT 1'),
+      // 邮件提醒配置（联查用户表获取用户名）
+      pool.execute(`
+        SELECT 
+          ec.id, 
+          ec.recipient_email, 
+          ec.reminder_frequency, 
+          ec.reminder_time, 
+          ec.weekly_day, 
+          ec.monthly_day, 
+          ec.updated_at
+        FROM email_config ec
+        LIMIT 1
+      `),
       
       // SMTP配置
       pool.execute('SELECT id, smtp_host, smtp_port, smtp_user, is_active, updated_at FROM smtp_config WHERE is_active = TRUE LIMIT 1'),
@@ -91,11 +102,40 @@ exports.getDashboardStats = async (req, res) => {
     const medicineExpireRate = medicineTotal > 0 ? (medicineExpired / medicineTotal) * 100 : 0;
     const supplyExpireRate = supplyTotal > 0 ? (supplyExpired / supplyTotal) * 100 : 0;
 
+    // 处理收件人邮箱，转换为用户名显示
+    let recipientDisplay = null;
+    if (emailConfig && emailConfig.recipient_email) {
+      // 支持逗号和分号两种分隔符
+      const emails = emailConfig.recipient_email
+        .split(/[,;]/)
+        .map(email => email.trim())
+        .filter(email => email);
+      
+      if (emails.length > 0) {
+        // 查询每个邮箱对应的用户名
+        const emailPlaceholders = emails.map(() => '?').join(',');
+        const [userRows] = await pool.execute(
+          `SELECT email, name FROM users WHERE email IN (${emailPlaceholders})`,
+          emails
+        );
+        
+        // 创建邮箱到用户名的映射
+        const emailToNameMap = {};
+        userRows.forEach(user => {
+          emailToNameMap[user.email] = user.name;
+        });
+        
+        // 构建显示字符串：优先显示用户名，如果没有对应用户则显示邮箱
+        const displayNames = emails.map(email => emailToNameMap[email] || email);
+        recipientDisplay = displayNames.join('；'); // 使用中文分号
+      }
+    }
+
     // 确定邮件服务状态
     const emailServiceStatus = {
       configured: !!(emailConfig && smtpConfig),
       emailConfig: emailConfig ? {
-        recipientEmail: emailConfig.recipient_email,
+        recipientEmail: recipientDisplay || emailConfig.recipient_email, // 显示用户名或邮箱
         reminderFrequency: emailConfig.reminder_frequency,
         weeklyDay: emailConfig.weekly_day,
         monthlyDay: emailConfig.monthly_day ? parseInt(emailConfig.monthly_day) : null,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Row, Col, Spin, message, Statistic, Progress, Badge, Button } from 'antd';
+import { Card, Row, Col, Spin, message, Statistic, Progress, Badge, Button, Tag } from 'antd';
 import { 
   WarningOutlined, 
   CheckCircleOutlined, 
@@ -311,11 +311,34 @@ const Dashboard: React.FC = () => {
                   {dashboardData.emailService?.emailConfig && (
                     <>
                       <Col span={12}>
-                        <Statistic 
-                          title="收件人设置" 
-                          value={dashboardData.emailService.emailConfig.recipientEmail || '未设置'} 
-                          valueStyle={{ fontSize: '14px' }}
-                        />
+                        <div style={{ marginBottom: '8px' }}>
+                          <span style={{ color: '#666', fontSize: '14px' }}>收件人设置</span>
+                        </div>
+                        <div>
+                          {dashboardData.emailService.emailConfig.recipientEmail ? (
+                            (() => {
+                              // 处理收件人显示：如果包含中文分号，说明是用户名；否则是邮箱
+                              const recipients = dashboardData.emailService.emailConfig.recipientEmail;
+                              if (recipients.includes('；')) {
+                                // 用户名形式，用中文分号分割
+                                return recipients.split('；').map((name, index) => (
+                                  <Tag key={index} color="blue" style={{ marginBottom: '4px' }}>
+                                    {name.trim()}
+                                  </Tag>
+                                ));
+                              } else {
+                                // 邮箱形式，用逗号或分号分割
+                                return recipients.split(/[,;]/).map((email, index) => (
+                                  <Tag key={index} color="geekblue" style={{ marginBottom: '4px' }}>
+                                    {email.trim()}
+                                  </Tag>
+                                ));
+                              }
+                            })()
+                          ) : (
+                            <Tag color="default">未设置</Tag>
+                          )}
+                        </div>
                       </Col>
                       <Col span={12}>
                         <Statistic 
