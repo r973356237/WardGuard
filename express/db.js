@@ -4,11 +4,18 @@ const config = require('./config');
 // 获取数据库连接配置
 const dbConfig = {
   ...config.getDatabaseConfig(),
-  connectionLimit: 20, // 连接池大小
+  connectionLimit: config.isProduction() ? 30 : 10, // 生产环境更大的连接池
   idleTimeout: 300000, // 空闲连接超时时间（5分钟）
-  maxIdle: 10, // 最大空闲连接数
+  maxIdle: config.isProduction() ? 15 : 5, // 最大空闲连接数
   enableKeepAlive: true, // 启用保持连接
-  keepAliveInitialDelay: 0
+  keepAliveInitialDelay: 0,
+  // 生产环境优化设置
+  acquireTimeout: config.isProduction() ? 30000 : 10000, // 获取连接超时
+  timeout: config.isProduction() ? 30000 : 10000, // 查询超时
+  reconnect: true, // 自动重连
+  multipleStatements: false, // 禁用多语句查询（安全考虑）
+  // 预创建连接
+  preCreateConnections: config.isProduction() ? 5 : 2
 };
 
 // 创建数据库连接池
@@ -59,6 +66,34 @@ const connectWithRetry = async (maxRetries = 5, delay = 2000) => {
       });
       
       connection.release();
+      
+      // 预创建连接（生产环境优化）
+      if (config.isProduction() && dbConfig.preCreateConnections > 0) {
+        console.log(`正在预创建 ${dbConfig.preCreateConnections} 个数据库连接...`);
+        const preConnections = [];
+        
+        try {
+          for (let i = 0; i < dbConfig.preCreateConnections; i++) {
+            const preConn = await dbPool.getConnection();
+            await preConn.ping();
+            preConnections.push(preConn);
+          }
+          
+          // 释放预创建的连接
+          preConnections.forEach(conn => conn.release());
+          console.log(`✅ 预创建 ${dbConfig.preCreateConnections} 个连接完成`);
+        } catch (preError) {
+          console.warn('预创建连接失败:', preError.message);
+          // 释放已创建的连接
+          preConnections.forEach(conn => {
+            try {
+              conn.release();
+            } catch (err) {
+              console.warn('释放预创建连接失败:', err.message);
+            }
+          });
+        }
+      }
       
       if (config.isDevelopment()) {
         console.log(`✅ 数据库连接成功 (开发环境) (尝试 ${i + 1}/${maxRetries})`);

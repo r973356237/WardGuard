@@ -4,6 +4,7 @@ const path = require('path');
 const config = require('./config');
 const { initializeDB, healthCheck } = require('./db');
 const schedulerService = require('./services/schedulerService');
+const appWarmup = require('./utils/appWarmup');
 
 // 打印当前配置信息
 config.printConfig();
@@ -95,6 +96,16 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// 预热状态接口
+app.get('/api/warmup-status', (req, res) => {
+  const warmupStatus = appWarmup.getWarmupStatus();
+  res.json({
+    success: true,
+    data: warmupStatus,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // 生产环境下，将所有非API请求重定向到index.html，支持前端路由
 if (config.isProduction()) {
   app.get('*', (req, res) => {
@@ -134,14 +145,22 @@ async function startServer() {
     console.log('✅ 定时任务调度器初始化完成');
     
     // 第四步：启动HTTP服务器
-    console.log('🌐 步骤 4/4: 启动HTTP服务器...');
-    const server = app.listen(PORT, () => {
+    console.log('🌐 步骤 4/5: 启动HTTP服务器...');
+    const server = app.listen(PORT, async () => {
       console.log('✅ 科室管理系统服务器启动成功!');
       console.log(`🔗 服务器地址: http://localhost:${PORT}`);
       console.log(`📊 健康检查: http://localhost:${PORT}/health`);
       console.log(`🎯 API端点: http://localhost:${PORT}/api`);
       console.log('📧 邮件提醒服务已启动');
-      console.log('🎉 系统已准备就绪，可以接受请求');
+      
+      // 第五步：应用预热（异步执行，不阻塞服务器启动）
+      console.log('🔥 步骤 5/5: 开始应用预热...');
+      appWarmup.warmup().then(() => {
+        console.log('🎉 系统已完全准备就绪，可以接受请求');
+      }).catch(error => {
+        console.warn('⚠️ 应用预热失败，但服务器仍可正常使用:', error.message);
+        console.log('🎉 系统已准备就绪，可以接受请求');
+      });
     });
 
     // 优雅关闭处理
