@@ -141,220 +141,6 @@ router.get('/permissions/user/:userId', authenticate, async (req, res) => {
   }
 });
 
-// 更新用户权限（需要管理员权限）
-router.post('/permissions/user/:userId', authenticate, checkPermission('users:manage'), async (req, res) => {
-  const { permissions } = req.body;
-  const userId = req.params.userId;
-
-  console.log('=== 开始更新用户权限 ===');
-  console.log('请求用户ID:', userId);
-  console.log('操作用户:', req.user ? `${req.user.username}(ID:${req.user.id})` : '未知');
-  console.log('请求权限数据:', permissions);
-  console.log('权限数据类型:', typeof permissions);
-  console.log('权限数组长度:', Array.isArray(permissions) ? permissions.length : 'N/A');
-
-  if (!Array.isArray(permissions)) {
-    console.log('❌ 权限数据格式错误 - 不是数组');
-    return res.status(400).json({
-      success: false,
-      message: '权限数据格式错误'
-    });
-  }
-
-  let connection;
-  try {
-    console.log('🔗 正在获取数据库连接...');
-    const pool = await getPool();
-    connection = await pool.getConnection();
-    console.log('✅ 数据库连接获取成功');
-
-    // 检查用户是否存在
-    console.log('🔍 检查目标用户是否存在...');
-    const [userCheck] = await connection.execute('SELECT id, username, name FROM users WHERE id = ?', [userId]);
-    if (userCheck.length === 0) {
-      console.log('❌ 目标用户不存在:', userId);
-      return res.status(404).json({
-        success: false,
-        message: '目标用户不存在'
-      });
-    }
-    console.log('✅ 目标用户存在:', userCheck[0]);
-
-    console.log('🚀 开始数据库事务...');
-    await connection.beginTransaction();
-
-    // 删除用户现有权限
-    console.log('🗑️ 删除用户现有权限...');
-    const [deleteResult] = await connection.execute('DELETE FROM user_permissions WHERE user_id = ?', [userId]);
-    console.log('✅ 删除现有权限完成，影响行数:', deleteResult.affectedRows);
-
-    // 如果有新权限，则添加
-    if (permissions.length > 0) {
-      console.log('📝 开始添加新权限...');
-      console.log('权限代码列表:', permissions);
-      
-      // 获取权限ID
-      console.log('🔍 查询权限ID...');
-      const [permissionRows] = await connection.execute(
-        'SELECT id, code FROM permissions WHERE code IN (?)',
-        [permissions]
-      );
-      console.log('✅ 查询到的权限:', permissionRows);
-      console.log('权限匹配情况:');
-      permissions.forEach(code => {
-        const found = permissionRows.find(p => p.code === code);
-        console.log(`  - ${code}: ${found ? `✅ ID=${found.id}` : '❌ 未找到'}`);
-      });
-
-      // 插入新的权限关联
-      const values = permissionRows.map(p => [userId, p.id, req.user.id, new Date()]);
-      console.log('准备插入的数据:', values);
-      
-      if (values.length > 0) {
-        console.log('💾 插入新的权限关联...');
-        const [insertResult] = await connection.query(
-          'INSERT INTO user_permissions (user_id, permission_id, granted_by, granted_at) VALUES ?',
-          [values]
-        );
-        console.log('✅ 权限插入完成，影响行数:', insertResult.affectedRows);
-      } else {
-        console.log('⚠️ 没有有效的权限需要插入');
-      }
-    } else {
-      console.log('ℹ️ 没有新权限需要添加（清空用户权限）');
-    }
-
-    console.log('✅ 提交事务...');
-    await connection.commit();
-    console.log('🎉 用户权限更新成功！');
-
-    res.json({
-      success: true,
-      message: '用户权限更新成功',
-      debug: {
-        userId,
-        permissionsCount: permissions.length,
-        operatedBy: req.user.username
-      }
-    });
-  } catch (err) {
-    console.log('❌ 更新用户权限过程中发生错误:', err);
-    console.log('错误详情:');
-    console.log('  - 错误消息:', err.message);
-    console.log('  - 错误代码:', err.code);
-    console.log('  - SQL状态:', err.sqlState);
-    console.log('  - SQL消息:', err.sqlMessage);
-    console.log('  - 堆栈跟踪:', err.stack);
-    
-    if (connection) {
-      console.log('🔄 回滚事务...');
-      try {
-        await connection.rollback();
-        console.log('✅ 事务回滚成功');
-      } catch (rollbackErr) {
-        console.log('❌ 事务回滚失败:', rollbackErr);
-      }
-    }
-    
-    res.status(500).json({
-      success: false,
-      message: '更新用户权限失败',
-      error: err.message,
-      debug: {
-        userId,
-        permissionsRequested: permissions,
-        errorCode: err.code,
-        sqlState: err.sqlState
-      }
-    });
-  } finally {
-    if (connection) {
-      console.log('🔌 释放数据库连接...');
-      connection.release();
-      console.log('✅ 数据库连接已释放');
-    }
-    console.log('=== 用户权限更新流程结束 ===\n');
-  }
-});
-
-// 获取所有模块的权限配置
-router.get('/permissions/modules', authenticate, async (req, res) => {
-  console.log('请求获取模块权限配置');
-  try {
-    const pool = await getPool();
-    console.log('成功获取数据库连接');
-    
-    const [permissions] = await pool.execute('SELECT DISTINCT module FROM permissions ORDER BY module');
-    console.log(`查询到 ${permissions.length} 个不同的模块`);
-    
-    const modules = [];
-    for (const { module } of permissions) {
-      console.log(`正在获取模块 ${module} 的权限`);
-      const [modulePermissions] = await pool.execute(
-        'SELECT * FROM permissions WHERE module = ? ORDER BY name',
-        [module]
-      );
-      console.log(`模块 ${module} 有 ${modulePermissions.length} 个权限`);
-      modules.push({
-        module,
-        permissions: modulePermissions
-      });
-    }
-
-    console.log('成功构建模块权限数据，准备返回');
-    res.json({
-      success: true,
-      modules
-    });
-  } catch (err) {
-    console.error('获取模块权限配置失败:', err);
-    res.status(500).json({
-      success: false,
-      message: '获取模块权限配置失败',
-      error: err.message
-    });
-  }
-});
-
-// 添加一个别名路由，兼容前端调用
-router.get('/modules/permissions', authenticate, async (req, res) => {
-  console.log('通过别名路由请求获取模块权限配置');
-  try {
-    const pool = await getPool();
-    console.log('成功获取数据库连接');
-    
-    const [permissions] = await pool.execute('SELECT DISTINCT module FROM permissions ORDER BY module');
-    console.log(`查询到 ${permissions.length} 个不同的模块`);
-    
-    const modules = [];
-    for (const { module } of permissions) {
-      console.log(`正在获取模块 ${module} 的权限`);
-      const [modulePermissions] = await pool.execute(
-        'SELECT * FROM permissions WHERE module = ? ORDER BY name',
-        [module]
-      );
-      console.log(`模块 ${module} 有 ${modulePermissions.length} 个权限`);
-      modules.push({
-        module,
-        permissions: modulePermissions
-      });
-    }
-
-    console.log('成功构建模块权限数据，准备返回');
-    res.json({
-      success: true,
-      modules
-    });
-  } catch (err) {
-    console.error('获取模块权限配置失败:', err);
-    res.status(500).json({
-      success: false,
-      message: '获取模块权限配置失败',
-      error: err.message
-    });
-  }
-});
-
 // 添加用户权限查询的别名路由
 router.get('/user-permissions/:userId', authenticate, async (req, res) => {
   console.log('通过别名路由请求获取用户权限，用户ID:', req.params.userId);
@@ -413,15 +199,24 @@ router.get('/user-permissions/:userId', authenticate, async (req, res) => {
   }
 });
 
-// 添加兼容前端的用户权限更新路由 (PUT /users/:userId/permissions)
-router.put('/users/:userId/permissions', authenticate, checkPermission('users:manage'), async (req, res) => {
-  const { permissions } = req.body;
-  const userId = req.params.userId;
+// 添加前端权限设置组件使用的POST路由
+router.post('/user-permissions', authenticate, checkPermission('users:manage'), async (req, res) => {
+  const { userId, permissions } = req.body;
 
-  console.log('=== 通过兼容路由更新用户权限 ===');
+  console.log('=== POST /user-permissions 权限更新开始 ===');
   console.log('请求用户ID:', userId);
   console.log('操作用户:', req.user ? `${req.user.username}(ID:${req.user.id})` : '未知');
   console.log('请求权限数据:', permissions);
+  console.log('权限数据类型:', typeof permissions);
+  console.log('权限数组长度:', Array.isArray(permissions) ? permissions.length : 'N/A');
+
+  if (!userId) {
+    console.log('❌ 缺少用户ID');
+    return res.status(400).json({
+      success: false,
+      message: '缺少用户ID'
+    });
+  }
 
   if (!Array.isArray(permissions)) {
     console.log('❌ 权限数据格式错误 - 不是数组');
@@ -433,11 +228,13 @@ router.put('/users/:userId/permissions', authenticate, checkPermission('users:ma
 
   let connection;
   try {
+    console.log('🔗 正在获取数据库连接...');
     const pool = await getPool();
     connection = await pool.getConnection();
     console.log('✅ 数据库连接获取成功');
 
     // 检查用户是否存在
+    console.log('🔍 检查目标用户是否存在...');
     const [userCheck] = await connection.execute('SELECT id, username, name FROM users WHERE id = ?', [userId]);
     if (userCheck.length === 0) {
       console.log('❌ 目标用户不存在:', userId);
@@ -448,44 +245,92 @@ router.put('/users/:userId/permissions', authenticate, checkPermission('users:ma
     }
     console.log('✅ 目标用户存在:', userCheck[0]);
 
+    console.log('🚀 开始数据库事务...');
     await connection.beginTransaction();
 
     // 删除用户现有权限
+    console.log('🗑️ 删除用户现有权限...');
     const [deleteResult] = await connection.execute('DELETE FROM user_permissions WHERE user_id = ?', [userId]);
     console.log('✅ 删除现有权限完成，影响行数:', deleteResult.affectedRows);
 
     // 如果有新权限，则添加
     if (permissions.length > 0) {
-      // 获取权限ID
-      const [permissionRows] = await connection.execute(
-        'SELECT id, code FROM permissions WHERE code IN (?)',
-        [permissions]
-      );
-      console.log('✅ 查询到的权限:', permissionRows);
-
-      // 插入新的权限关联
-      const values = permissionRows.map(p => [userId, p.id, req.user.id, new Date()]);
+      console.log('📝 开始添加新权限...');
+      console.log('原始权限ID列表:', permissions);
       
-      if (values.length > 0) {
-        const [insertResult] = await connection.query(
-          'INSERT INTO user_permissions (user_id, permission_id, granted_by, granted_at) VALUES ?',
-          [values]
+      // 过滤掉null值和无效值，确保都是有效的数字ID
+      const validPermissionIds = permissions
+        .filter(id => id !== null && id !== undefined && !isNaN(parseInt(id)))
+        .map(id => parseInt(id));
+      
+      console.log('过滤后的权限ID列表:', validPermissionIds);
+      
+      if (validPermissionIds.length === 0) {
+        console.log('⚠️ 没有有效的权限ID需要处理');
+      } else {
+        // 验证权限ID是否存在 - 使用MySQL 5.7兼容的语法
+        console.log('🔍 验证权限ID...');
+        const placeholders = validPermissionIds.map(() => '?').join(',');
+        const [permissionRows] = await connection.execute(
+          `SELECT id FROM permissions WHERE id IN (${placeholders})`,
+          validPermissionIds
         );
-        console.log('✅ 权限插入完成，影响行数:', insertResult.affectedRows);
+        console.log('✅ 查询到的有效权限:', permissionRows);
+        console.log('权限验证情况:');
+        validPermissionIds.forEach(id => {
+          const found = permissionRows.find(p => p.id === id);
+          console.log(`  - ID ${id}: ${found ? '✅ 有效' : '❌ 无效'}`);
+        });
+
+        // 插入新的权限关联
+        const finalValidIds = permissionRows.map(p => p.id);
+        console.log('最终有效的权限ID列表:', finalValidIds);
+        
+        if (finalValidIds.length > 0) {
+          console.log('💾 插入权限关联...');
+          
+          // 使用逐个插入的方式，确保兼容性
+          for (const permissionId of finalValidIds) {
+            await connection.execute(
+              'INSERT INTO user_permissions (user_id, permission_id, granted_by, granted_at) VALUES (?, ?, ?, ?)',
+              [userId, permissionId, req.user.id, new Date()]
+            );
+            console.log(`✅ 成功插入权限关联: 用户${userId} -> 权限${permissionId}`);
+          }
+          
+          console.log(`✅ 成功插入 ${finalValidIds.length} 个权限关联`);
+        } else {
+          console.log('⚠️ 没有有效的权限需要插入');
+        }
       }
+    } else {
+      console.log('⚠️ 没有权限需要添加');
     }
 
+    console.log('✅ 提交事务...');
     await connection.commit();
     console.log('🎉 用户权限更新成功！');
 
     res.json({
       success: true,
-      message: '用户权限更新成功'
+      message: '用户权限更新成功',
+      debug: {
+        userId,
+        permissionsCount: permissions.length,
+        operatedBy: req.user.username
+      }
     });
   } catch (err) {
     console.log('❌ 更新用户权限过程中发生错误:', err);
+    console.log('错误详情:');
+    console.log('  - 错误消息:', err.message);
+    console.log('  - 错误代码:', err.code);
+    console.log('  - SQL状态:', err.sqlState);
+    console.log('  - SQL消息:', err.sqlMessage);
+    console.log('  - 堆栈跟踪:', err.stack);
     
     if (connection) {
+      console.log('🔄 回滚事务...');
       try {
         await connection.rollback();
         console.log('✅ 事务回滚成功');
@@ -497,14 +342,110 @@ router.put('/users/:userId/permissions', authenticate, checkPermission('users:ma
     res.status(500).json({
       success: false,
       message: '更新用户权限失败',
-      error: err.message
+      error: err.message,
+      debug: {
+        userId,
+        permissionsRequested: permissions,
+        errorCode: err.code,
+        sqlState: err.sqlState
+      }
     });
   } finally {
     if (connection) {
+      console.log('🔌 释放数据库连接...');
       connection.release();
       console.log('✅ 数据库连接已释放');
     }
-    console.log('=== 兼容路由权限更新流程结束 ===\n');
+    console.log('=== POST /user-permissions 权限更新流程结束 ===\n');
+  }
+});
+
+// 获取所有模块权限配置 - 前端期望的路由
+router.get('/modules/permissions', authenticate, async (req, res) => {
+  console.log('请求获取模块权限配置 - 前端路由');
+  try {
+    const pool = await getPool();
+    console.log('成功获取数据库连接');
+    
+    // 获取所有权限，按模块分组
+    const [permissions] = await pool.execute(`
+      SELECT id, code, name, description, module 
+      FROM permissions 
+      ORDER BY module, id
+    `);
+    console.log(`查询到 ${permissions.length} 个权限`);
+    
+    // 按模块分组
+    const moduleGroups = {};
+    permissions.forEach(permission => {
+      if (!moduleGroups[permission.module]) {
+        moduleGroups[permission.module] = [];
+      }
+      moduleGroups[permission.module].push({
+        id: permission.id,
+        code: permission.code,
+        name: permission.name,
+        description: permission.description
+      });
+    });
+    
+    // 转换为数组格式
+    const modules = Object.keys(moduleGroups).map(module => ({
+      module,
+      permissions: moduleGroups[module]
+    }));
+
+    console.log('成功构建模块权限数据，准备返回');
+    res.json({
+      success: true,
+      modules
+    });
+  } catch (err) {
+    console.error('获取模块权限配置失败:', err);
+    res.status(500).json({
+      success: false,
+      message: '获取模块权限配置失败',
+      error: err.message
+    });
+  }
+});
+
+// 获取所有模块的权限配置 - 备用路由
+router.get('/permissions/modules', authenticate, async (req, res) => {
+  console.log('请求获取模块权限配置');
+  try {
+    const pool = await getPool();
+    console.log('成功获取数据库连接');
+    
+    const [permissions] = await pool.execute('SELECT DISTINCT module FROM permissions ORDER BY module');
+    console.log(`查询到 ${permissions.length} 个不同的模块`);
+    
+    const modules = [];
+    for (const { module } of permissions) {
+      console.log(`正在获取模块 ${module} 的权限`);
+      const [modulePermissions] = await pool.execute(
+        'SELECT * FROM permissions WHERE module = ? ORDER BY name',
+        [module]
+      );
+      console.log(`模块 ${module} 有 ${modulePermissions.length} 个权限`);
+      modules.push({
+        module,
+        permissions: modulePermissions
+      });
+    }
+
+    console.log('成功构建模块权限数据，准备返回');
+    res.json({
+      success: true,
+      modules
+    });
+  } catch (err) {
+    console.error('获取模块权限配置失败:', err);
+    res.status(500).json({
+      success: false,
+      message: '获取模块权限配置失败',
+      error: err.message
+    });
   }
 });
 

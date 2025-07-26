@@ -23,9 +23,6 @@ WardGuard 是一个现代化的科室管理系统，采用前后端分离架构�
 ```
 WardGuard/
 ├── README.md                    # 项目说明文档
-├── ecosystem.config.json        # PM2 进程管理配置
-├── database_init.sql            # 数据库初始化脚本
-├── backup_database.sh           # 数据库备份脚本
 ├── client/                      # 前端项目
 │   ├── build/                   # 前端构建产物
 │   ├── public/                  # 静态资源
@@ -101,6 +98,8 @@ WardGuard/
 │   ├── models/                  # 数据模型
 │   │   └── user_model.js
 │   ├── migrations/              # 数据库迁移文件
+│   │   ├── README.md            # 迁移说明文档
+│   │   ├── database_init.sql    # 数据库初始化脚本
 │   │   ├── migration_manager.js # 迁移管理器
 │   │   ├── create_permissions_tables.sql
 │   │   ├── create_operation_records_table.sql
@@ -170,7 +169,7 @@ mysql -u root -p
 CREATE DATABASE wardguard CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 # 导入初始化脚本
-mysql -u root -p wardguard < database_init.sql
+mysql -u root -p wardguard < express/migrations/database_init.sql
 ```
 
 ### 3. 后端配置与启动
@@ -223,7 +222,7 @@ npm run build
 
 # 启动后端服务
 cd ../express
-pm2 start ecosystem.config.json
+pm2 start index.js --name wardguard
 
 # 查看状态
 pm2 status
