@@ -13,7 +13,6 @@ import MedicalExaminations from './pages/MedicalExaminations';
 import EmailSettings from './pages/EmailSettings';
 import Sidebar from './components/Sidebar';
 import PermissionGuard from './components/PermissionGuard';
-import PermissionSettings from './components/PermissionSettings';
 import OperationRecords from './components/OperationRecords';
 import { buildApiUrl, API_ENDPOINTS } from './config/api';
 import './App.css';
@@ -36,7 +35,6 @@ const MainLayout: React.FC = () => {
     '/medical-examinations': '体检记录管理',
     '/medical-examinations/operation-records': '体检记录操作记录',
     '/email-settings': '邮件提醒设置',
-    '/permissions': '权限设置',
     '/dashboard': '仪表盘'
   };
 
@@ -265,14 +263,7 @@ const App: React.FC = () => {
               </PermissionGuard>
             }
           />
-          <Route 
-            path="permissions"
-            element={
-              <PermissionGuard adminOnly={true}>
-                <PermissionSettings />
-              </PermissionGuard>
-            }
-          />
+
 
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

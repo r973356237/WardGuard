@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, Input, Select, message, Card, Space, Tag, Popconfirm, Row, Col } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, HistoryOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, HistoryOutlined, SafetyOutlined } from '@ant-design/icons';
 import { API_ENDPOINTS } from '../config/api';
 import ApiClient from '../utils/api_client';
 import { useNavigate } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
+import UserPermissionModal from '../components/UserPermissionModal';
 
 type User = {
   id: number;
@@ -26,7 +27,9 @@ const Users: React.FC = () => {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [form] = Form.useForm();
-  // 移除实例化
+  // 权限设置模态框状态
+  const [permissionModalVisible, setPermissionModalVisible] = useState(false);
+  const [selectedUserForPermission, setSelectedUserForPermission] = useState<User | null>(null);
 
   // 获取用户数据
   const fetchUsers = async () => {
@@ -68,6 +71,24 @@ const Users: React.FC = () => {
   // 查看用户操作记录
   const handleViewOperationRecords = (userId: number) => {
     navigate(`/user-operation-records/${userId}`);
+  };
+
+  // 设置用户权限
+  const handleSetPermissions = (user: User) => {
+    setSelectedUserForPermission(user);
+    setPermissionModalVisible(true);
+  };
+
+  // 关闭权限设置模态框
+  const handlePermissionModalCancel = () => {
+    setPermissionModalVisible(false);
+    setSelectedUserForPermission(null);
+  };
+
+  // 权限设置成功回调
+  const handlePermissionSuccess = () => {
+    message.success('权限设置已更新');
+    // 可以在这里刷新用户列表或执行其他操作
   };
 
   // 删除用户
@@ -162,6 +183,14 @@ const Users: React.FC = () => {
             onClick={() => handleEditUser(record)}
           >
             编辑
+          </Button>
+          <Button 
+            type="default" 
+            size="small" 
+            icon={<SafetyOutlined />}
+            onClick={() => handleSetPermissions(record)}
+          >
+            权限设置
           </Button>
           <Button 
             type="default" 
@@ -332,6 +361,14 @@ const Users: React.FC = () => {
           )}
         </Form>
       </Modal>
+
+      {/* 权限设置模态框 */}
+      <UserPermissionModal
+        visible={permissionModalVisible}
+        user={selectedUserForPermission}
+        onCancel={handlePermissionModalCancel}
+        onSuccess={handlePermissionSuccess}
+      />
     </>
   );
 };

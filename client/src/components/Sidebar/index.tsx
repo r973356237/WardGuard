@@ -8,7 +8,6 @@ import {
   MedicineBoxOutlined,
   ShoppingOutlined,
   FileTextOutlined,
-  SafetyOutlined,
   MailOutlined
 } from '@ant-design/icons';
 import { buildApiUrl, API_ENDPOINTS } from '../../config/api';
@@ -174,13 +173,6 @@ const Sidebar: React.FC = () => {
       label: <Link to="/medical-examinations">体检记录</Link>,
       permission: 'medical_examinations:view',
       adminOnly: false,
-    },
-    {
-      key: '/permissions',
-      icon: <SafetyOutlined />,
-      label: <Link to="/permissions">权限设置</Link>,
-      permission: null,
-      adminOnly: true, // 权限设置只有管理员可以访问
     },
     {
       key: '/email-settings',
