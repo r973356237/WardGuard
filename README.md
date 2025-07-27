@@ -101,15 +101,11 @@ WardGuard 是一个专为医疗科室设计的综合管理系统，提供员工�
 
 4. **环境配置**
    ```bash
-   # 复制环境配置文件
-   cd express
-   cp .env.development .env.local
-   
    # 编辑配置文件，修改数据库连接信息
    # DB_HOST=localhost
    # DB_USER=your_username
    # DB_PASSWORD=your_password
-   # DB_NAME=wardguard
+   # DB_NAME=your_dbname
    ```
 
 5. **启动服务**
@@ -200,147 +196,45 @@ sudo dnf install nginx
 ```
 
 ##### Nginx 配置文件
-创建配置文件 `/etc/nginx/sites-available/wardguard`：
+创建配置文件 `/etc/nginx/conf.d/wardguard.conf`：
 
 ```nginx
 server {
     listen 80;
-    server_name your-domain.com;  # 替换为您的域名
-    
-    # 重定向 HTTP 到 HTTPS（可选，推荐）
-    return 301 https://$server_name$request_uri;
-}
+    server_name your-domain.com;
 
-server {
-    listen 443 ssl http2;
-    server_name your-domain.com;  # 替换为您的域名
-    
-    # SSL 证书配置（如果使用 HTTPS）
-    ssl_certificate /path/to/your/certificate.crt;
-    ssl_certificate_key /path/to/your/private.key;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384;
-    ssl_prefer_server_ciphers off;
-    
-    # 安全头设置
-    add_header X-Frame-Options DENY;
-    add_header X-Content-Type-Options nosniff;
-    add_header X-XSS-Protection "1; mode=block";
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    
-    # 前端静态文件
     location / {
-        root /var/www/wardguard/client/build;  # 替换为您的前端构建目录
-        try_files $uri $uri/ /index.html;
-        
-        # 静态资源缓存
-        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-            expires 1y;
-            add_header Cache-Control "public, immutable";
-        }
+        root /opt/WardGuard/client/build;
+        try_files $uri /index.html;
     }
-    
-    # 后端 API 代理
-    location /api/ {
-        proxy_pass http://localhost:3000;  # 后端服务地址
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
+
+    location /api {
+        proxy_pass http://localhost:3000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-        
-        # 超时设置
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
     }
-    
-    # 文件上传大小限制
-    client_max_body_size 50M;
-    
-    # Gzip 压缩
-    gzip on;
-    gzip_vary on;
-    gzip_min_length 1024;
-    gzip_proxied any;
-    gzip_comp_level 6;
-    gzip_types
-        text/plain
-        text/css
-        text/xml
-        text/javascript
-        application/json
-        application/javascript
-        application/xml+rss
-        application/atom+xml
-        image/svg+xml;
 }
 ```
-
-##### 启用配置并重启 Nginx
+##### 配置PM2
 ```bash
-# 创建软链接启用站点
-sudo ln -s /etc/nginx/sites-available/wardguard /etc/nginx/sites-enabled/
-
-# 测试配置文件语法
-sudo nginx -t
-
-# 重启 Nginx
-sudo systemctl restart nginx
-
-# 设置开机自启
-sudo systemctl enable nginx
-```
-
-#### 3. 使用宝塔面板部署（推荐）
-
-如果使用宝塔面板，可以通过以下步骤配置：
-
-1. **创建网站**
-   - 登录宝塔面板
-   - 点击"网站" → "添加站点"
-   - 输入域名，选择 PHP 版本（可选择纯静态）
-
-2. **配置 Nginx**
-   - 进入网站设置 → "配置文件"
-   - 替换为上述 Nginx 配置内容
-   - 修改路径为实际部署路径
-
-3. **SSL 证书**
-   - 在网站设置中点击 "SSL"
-   - 选择 Let's Encrypt 免费证书或上传自有证书
-
-4. **防火墙设置**
-   - 确保开放 80 和 443 端口
-   - 后端端口（3000）仅允许本地访问
-
-#### 4. PM2 进程管理（推荐）
-
-使用 PM2 管理 Node.js 应用：
-
-```bash
-# 安装 PM2
+# 全局安装 PM2
 npm install -g pm2
-
 # 创建 PM2 配置文件 ecosystem.config.js
 cat > ecosystem.config.js << EOF
 module.exports = {
   apps: [{
     name: 'wardguard-backend',
     script: 'index.js',
-    cwd: '/var/www/wardguard/express',
+    cwd: '/opt/WardGuard/express',
     instances: 'max',
     exec_mode: 'cluster',
     env: {
       NODE_ENV: 'production',
-      PORT: 5000
+      PORT: 3000
     },
-    error_file: '/var/log/pm2/wardguard-error.log',
-    out_file: '/var/log/pm2/wardguard-out.log',
-    log_file: '/var/log/pm2/wardguard.log',
+    error_file: '/opt/log/pm2/wardguard-error.log',
+    out_file: '/opt/log/pm2/wardguard-out.log',
+    log_file: '/opt/log/pm2/wardguard.log',
     time: true
   }]
 };
@@ -354,19 +248,6 @@ pm2 save
 
 # 设置开机自启
 pm2 startup
-```
-
-#### 5. 部署检查清单
-
-- [ ] 前端构建文件已上传到服务器
-- [ ] 后端代码已部署并配置环境变量
-- [ ] 数据库已创建并导入初始数据
-- [ ] Nginx 配置正确并已重启
-- [ ] SSL 证书已配置（如果使用 HTTPS）
-- [ ] PM2 进程管理已配置
-- [ ] 防火墙端口已正确开放
-- [ ] 域名 DNS 解析已配置
-- [ ] 邮件服务配置已测试
 
 ### 数据库管理
 
@@ -411,11 +292,6 @@ node migrations/export_db_structure.js
 3. 设置提醒频率和时间
 4. 测试邮件发送功能
 
-### 支持的邮件服务
-- 企业邮箱（腾讯企业邮、阿里企业邮等）
-- Gmail、Outlook 等个人邮箱
-- 自建邮件服务器
-
 ### 系统维护
 ```bash
 # 查看系统信息
@@ -438,7 +314,7 @@ node migrations/validate_init_script.js
    - 确认数据库用户权限
 
 2. **前端无法访问后端**
-   - 检查后端服务是否正常启动（端口 5000）
+   - 检查后端服务是否正常启动（端口 3000）
    - 验证 CORS 配置
    - 检查防火墙设置
 
@@ -451,71 +327,6 @@ node migrations/validate_init_script.js
    - 检查用户角色设置
    - 验证权限分配
    - 清除浏览器缓存重新登录
-
-5. **Nginx 相关问题**
-   - **502 Bad Gateway**
-     ```bash
-     # 检查后端服务是否运行
-     pm2 status
-     # 检查端口是否被占用
-     netstat -tlnp | grep :5000
-     # 查看 Nginx 错误日志
-     sudo tail -f /var/log/nginx/error.log
-     ```
-   
-   - **403 Forbidden**
-     ```bash
-     # 检查文件权限
-     sudo chown -R www-data:www-data /var/www/wardguard
-     sudo chmod -R 755 /var/www/wardguard
-     ```
-   
-   - **静态资源加载失败**
-     ```bash
-     # 检查前端构建文件路径
-     ls -la /var/www/wardguard/client/build
-     # 验证 Nginx 配置中的 root 路径
-     sudo nginx -t
-     ```
-   
-   - **SSL 证书问题**
-     ```bash
-     # 检查证书有效性
-     openssl x509 -in /path/to/certificate.crt -text -noout
-     # 测试 SSL 配置
-     openssl s_client -connect your-domain.com:443
-     ```
-
-6. **PM2 进程管理问题**
-   - **应用无法启动**
-     ```bash
-     # 查看详细错误日志
-     pm2 logs wardguard-backend
-     # 重启应用
-     pm2 restart wardguard-backend
-     ```
-   
-   - **内存占用过高**
-     ```bash
-     # 查看进程状态
-     pm2 monit
-     # 重启应用释放内存
-     pm2 reload wardguard-backend
-     ```
-
-## 📈 性能优化
-
-### 前端优化
-- 组件懒加载
-- 图片压缩优化
-- 打包体积优化
-- 缓存策略
-
-### 后端优化
-- 数据库连接池
-- SQL 查询优化
-- 接口响应缓存
-- 日志管理
 
 <div align="center">
   <p>如果这个项目对您有帮助，请给我们一个 ⭐️</p>
