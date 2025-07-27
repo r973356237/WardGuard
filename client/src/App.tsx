@@ -1,21 +1,39 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
-import { Layout as AntLayout, Dropdown, Avatar, Menu } from 'antd';
-import LoginPage from './pages/Login';
-import RegisterPage from './pages/Register';
-import Dashboard from './pages/Dashboard';
-import Users from './pages/Users';
-import UserOperationRecords from './pages/UserOperationRecords';
-import Employees from './pages/Employees';
-import Medicines from './pages/Medicines';
-import Supplies from './pages/Supplies';
-import MedicalExaminations from './pages/MedicalExaminations';
-import EmailSettings from './pages/EmailSettings';
-import Sidebar from './components/Sidebar';
-import PermissionGuard from './components/PermissionGuard';
-import OperationRecords from './components/OperationRecords';
+import { Layout as AntLayout, Dropdown, Avatar, Menu, Spin } from 'antd';
 import { buildApiUrl, API_ENDPOINTS } from './config/api';
+import PerformanceMonitor from './components/PerformanceMonitor';
+import { preloadCriticalRoutes } from './utils/preload';
 import './App.css';
+
+// 懒加载页面组件
+const LoginPage = lazy(() => import('./pages/Login'));
+const RegisterPage = lazy(() => import('./pages/Register'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Users = lazy(() => import('./pages/Users'));
+const UserOperationRecords = lazy(() => import('./pages/UserOperationRecords'));
+const Employees = lazy(() => import('./pages/Employees'));
+const Medicines = lazy(() => import('./pages/Medicines'));
+const Supplies = lazy(() => import('./pages/Supplies'));
+const MedicalExaminations = lazy(() => import('./pages/MedicalExaminations'));
+const EmailSettings = lazy(() => import('./pages/EmailSettings'));
+
+// 懒加载组件
+const Sidebar = lazy(() => import('./components/Sidebar'));
+const PermissionGuard = lazy(() => import('./components/PermissionGuard'));
+const OperationRecords = lazy(() => import('./components/OperationRecords'));
+
+// 加载中组件
+const LoadingSpinner: React.FC = () => (
+  <div style={{ 
+    display: 'flex', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    height: '200px' 
+  }}>
+    <Spin size="large" tip="加载中..." />
+  </div>
+);
 
 // 布局组件
 const MainLayout: React.FC = () => {
@@ -71,6 +89,8 @@ const MainLayout: React.FC = () => {
         const data = await response.json();
         if (data.success && data.data) {
           setUser(data.data);
+          // 用户信息加载完成后，预加载关键路由
+          preloadCriticalRoutes();
         } else {
           throw new Error('获取用户信息失败');
         }
@@ -128,7 +148,9 @@ const MainLayout: React.FC = () => {
             />
           </div>
           
-          <Sidebar />
+          <Suspense fallback={<LoadingSpinner />}>
+            <Sidebar />
+          </Suspense>
         </div>
       </AntLayout.Sider>
       <AntLayout>
@@ -172,103 +194,132 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 const App: React.FC = () => {
   return (
-    <Router>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route 
-          path="/"
-          element={
-            <ProtectedRoute>
-              <MainLayout />
-            </ProtectedRoute>
-          }
-        >
-          <Route index element={<Dashboard />} />
-          <Route path="users" element={
-            <PermissionGuard adminOnly={true}>
-              <Users />
-            </PermissionGuard>
-          } />
-          <Route path="user-operation-records/:userId?" element={
-            <PermissionGuard adminOnly={true}>
-              <UserOperationRecords />
-            </PermissionGuard>
-          } />
-          <Route path="employees" element={
-            <PermissionGuard requiredPermission="employees:view">
-              <Employees />
-            </PermissionGuard>
-          } />
-          <Route path="employees/operation-records" element={
-            <PermissionGuard requiredPermission="employees:view">
-              <OperationRecords 
-                targetType="employee" 
-                title="员工操作记录" 
-                backPath="/employees" 
-                backButtonText="返回员工管理" 
-              />
-            </PermissionGuard>
-          } />
-          <Route path="medicines" element={
-            <PermissionGuard requiredPermission="medicines:view">
-              <Medicines />
-            </PermissionGuard>
-          } />
-          <Route path="medicines/operation-records" element={
-            <PermissionGuard requiredPermission="medicines:view">
-              <OperationRecords 
-                targetType="medicine" 
-                title="药品操作记录" 
-                backPath="/medicines" 
-                backButtonText="返回药品管理" 
-              />
-            </PermissionGuard>
-          } />
-          <Route path="supplies" element={
-            <PermissionGuard requiredPermission="supplies:view">
-              <Supplies />
-            </PermissionGuard>
-          } />
-          <Route path="supplies/operation-records" element={
-            <PermissionGuard requiredPermission="supplies:view">
-              <OperationRecords 
-                targetType="supply" 
-                title="物资操作记录" 
-                backPath="/supplies" 
-                backButtonText="返回物资管理" 
-              />
-            </PermissionGuard>
-          } />
-          <Route path="medical-examinations" element={
-            <PermissionGuard requiredPermission="medical_examinations:view">
-              <MedicalExaminations />
-            </PermissionGuard>
-          } />
-          <Route path="medical-examinations/operation-records" element={
-            <PermissionGuard requiredPermission="medical_examinations:view">
-              <OperationRecords 
-                targetType="medical_examination" 
-                title="体检记录操作记录" 
-                backPath="/medical-examinations" 
-                backButtonText="返回体检记录管理" 
-              />
-            </PermissionGuard>
-          } />
+    <>
+      <PerformanceMonitor />
+      <Router>
+        <Suspense fallback={<LoadingSpinner />}>
+          <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
           <Route 
-            path="email-settings"
+            path="/"
             element={
-              <PermissionGuard adminOnly={true}>
-                <EmailSettings />
-              </PermissionGuard>
+              <ProtectedRoute>
+                <MainLayout />
+              </ProtectedRoute>
             }
-          />
-
-
-        </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Router>
+          >
+            <Route index element={
+              <Suspense fallback={<LoadingSpinner />}>
+                <Dashboard />
+              </Suspense>
+            } />
+            <Route path="users" element={
+              <Suspense fallback={<LoadingSpinner />}>
+                <PermissionGuard adminOnly={true}>
+                  <Users />
+                </PermissionGuard>
+              </Suspense>
+            } />
+            <Route path="user-operation-records/:userId?" element={
+              <Suspense fallback={<LoadingSpinner />}>
+                <PermissionGuard adminOnly={true}>
+                  <UserOperationRecords />
+                </PermissionGuard>
+              </Suspense>
+            } />
+            <Route path="employees" element={
+              <Suspense fallback={<LoadingSpinner />}>
+                <PermissionGuard requiredPermission="employees:view">
+                  <Employees />
+                </PermissionGuard>
+              </Suspense>
+            } />
+            <Route path="employees/operation-records" element={
+              <Suspense fallback={<LoadingSpinner />}>
+                <PermissionGuard requiredPermission="employees:view">
+                  <OperationRecords 
+                    targetType="employee" 
+                    title="员工操作记录" 
+                    backPath="/employees" 
+                    backButtonText="返回员工管理" 
+                  />
+                </PermissionGuard>
+              </Suspense>
+            } />
+            <Route path="medicines" element={
+              <Suspense fallback={<LoadingSpinner />}>
+                <PermissionGuard requiredPermission="medicines:view">
+                  <Medicines />
+                </PermissionGuard>
+              </Suspense>
+            } />
+            <Route path="medicines/operation-records" element={
+              <Suspense fallback={<LoadingSpinner />}>
+                <PermissionGuard requiredPermission="medicines:view">
+                  <OperationRecords 
+                    targetType="medicine" 
+                    title="药品操作记录" 
+                    backPath="/medicines" 
+                    backButtonText="返回药品管理" 
+                  />
+                </PermissionGuard>
+              </Suspense>
+            } />
+            <Route path="supplies" element={
+              <Suspense fallback={<LoadingSpinner />}>
+                <PermissionGuard requiredPermission="supplies:view">
+                  <Supplies />
+                </PermissionGuard>
+              </Suspense>
+            } />
+            <Route path="supplies/operation-records" element={
+              <Suspense fallback={<LoadingSpinner />}>
+                <PermissionGuard requiredPermission="supplies:view">
+                  <OperationRecords 
+                    targetType="supply" 
+                    title="物资操作记录" 
+                    backPath="/supplies" 
+                    backButtonText="返回物资管理" 
+                  />
+                </PermissionGuard>
+              </Suspense>
+            } />
+            <Route path="medical-examinations" element={
+              <Suspense fallback={<LoadingSpinner />}>
+                <PermissionGuard requiredPermission="medical_examinations:view">
+                  <MedicalExaminations />
+                </PermissionGuard>
+              </Suspense>
+            } />
+            <Route path="medical-examinations/operation-records" element={
+              <Suspense fallback={<LoadingSpinner />}>
+                <PermissionGuard requiredPermission="medical_examinations:view">
+                  <OperationRecords 
+                    targetType="medical_examination" 
+                    title="体检记录操作记录" 
+                    backPath="/medical-examinations" 
+                    backButtonText="返回体检记录管理" 
+                  />
+                </PermissionGuard>
+              </Suspense>
+            } />
+            <Route 
+              path="email-settings"
+              element={
+                <Suspense fallback={<LoadingSpinner />}>
+                  <PermissionGuard adminOnly={true}>
+                    <EmailSettings />
+                  </PermissionGuard>
+                </Suspense>
+              }
+            />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+         </Routes>
+       </Suspense>
+     </Router>
+   </>
   );
 };
 

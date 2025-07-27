@@ -23,7 +23,9 @@
   "proxy": "http://localhost:3000",
   "scripts": {
     "start": "set PORT=3001 && set GENERATE_SOURCEMAP=false && react-scripts start",
-    "build": "react-scripts build",
+    "build": "set GENERATE_SOURCEMAP=false && react-scripts build",
+    "build:prod": "set GENERATE_SOURCEMAP=false && set NODE_ENV=production && react-scripts build",
+    "analyze": "npx webpack-bundle-analyzer build/static/js/*.js",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -45,9 +47,11 @@
     ]
   },
   "devDependencies": {
+    "@craco/craco": "^7.1.0",
     "@types/file-saver": "^2.0.7",
     "@types/moment": "^2.11.29",
     "moment": "^2.30.1",
-    "react-scripts": "^5.0.1"
+    "react-scripts": "^5.0.1",
+    "webpack-bundle-analyzer": "^4.10.1"
   }
 }
