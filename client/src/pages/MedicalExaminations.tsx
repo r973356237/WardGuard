@@ -4,7 +4,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, HistoryOutline
 import { useNavigate } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
 import apiClient from '../config/axios';
-import moment from 'moment';
+import dayjs from 'dayjs';
 import { API_ENDPOINTS } from '../config/api';
 import ImportExportButtons from '../components/ImportExportButtons';
 import CollapsibleFilter from '../components/CollapsibleFilter';
@@ -131,8 +131,8 @@ const MedicalExaminations: React.FC = () => {
     setEditingExamination(examination);
     modalForm.setFieldsValue({
       ...examination,
-      examination_date: examination.examination_date ? moment(examination.examination_date) : null,
-      recheck_date: examination.recheck_date ? moment(examination.recheck_date) : null,
+      examination_date: examination.examination_date ? dayjs(examination.examination_date) : null,
+      recheck_date: examination.recheck_date ? dayjs(examination.recheck_date) : null,
     });
     setIsModalVisible(true);
   };
@@ -225,7 +225,7 @@ const MedicalExaminations: React.FC = () => {
 
     if (examination_date) {
       filtered = filtered.filter(exam => 
-        moment(exam.examination_date).format('YYYY-MM-DD') === examination_date
+        dayjs(exam.examination_date).format('YYYY-MM-DD') === examination_date
       );
     }
 
@@ -321,7 +321,7 @@ const MedicalExaminations: React.FC = () => {
       sorter: true,
       render: (date: string | undefined) => {
         if (!date) return '-';
-        return moment(date).format('YYYY/MM/DD');
+        return dayjs(date).format('YYYY/MM/DD');
       }
     },
     { 
@@ -501,6 +501,9 @@ const MedicalExaminations: React.FC = () => {
                   format="YYYY-MM-DD" 
                   style={{ width: '100%' }}
                   placeholder="请选择体检日期"
+                  changeOnBlur
+                  allowClear
+                  showToday={false}
                 />
               </Form.Item>
             </Col>
@@ -547,6 +550,9 @@ const MedicalExaminations: React.FC = () => {
                   format="YYYY-MM-DD" 
                   style={{ width: '100%' }}
                   placeholder="请选择复查时间"
+                  changeOnBlur
+                  allowClear
+                  showToday={false}
                 />
               </Form.Item>
             </Col>
@@ -593,7 +599,7 @@ const MedicalExaminations: React.FC = () => {
                 <div style={{ marginBottom: 16 }}>
                   <strong>体检日期：</strong>
                   <span style={{ marginLeft: 8 }}>
-                    {detailExamination.examination_date ? moment(detailExamination.examination_date).format('YYYY年MM月DD日') : '-'}
+                    {detailExamination.examination_date ? dayjs(detailExamination.examination_date).format('YYYY年MM月DD日') : '-'}
                   </span>
                 </div>
               </Col>
@@ -619,7 +625,7 @@ const MedicalExaminations: React.FC = () => {
                 <div style={{ marginBottom: 16 }}>
                   <strong>复查时间：</strong>
                   <span style={{ marginLeft: 8 }}>
-                    {detailExamination.recheck_date ? moment(detailExamination.recheck_date).format('YYYY年MM月DD日') : '-'}
+                    {detailExamination.recheck_date ? dayjs(detailExamination.recheck_date).format('YYYY年MM月DD日') : '-'}
                   </span>
                 </div>
               </Col>

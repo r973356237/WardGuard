@@ -3,7 +3,7 @@ import { Card, Table, Form, Input, Button, Spin, Space, Modal, Select, Popconfir
 import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, HistoryOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import apiClient from '../config/axios';
-import moment from 'moment';
+import dayjs from 'dayjs';
 import { API_ENDPOINTS } from '../config/api';
 import { useNavigate } from 'react-router-dom';
 import ImportExportButtons from '../components/ImportExportButtons';
@@ -69,6 +69,44 @@ const Employees: React.FC = () => {
   // 初始化表单实例
   const [form] = Form.useForm();
   const [modalForm] = Form.useForm();
+  
+  // 总接害时间计算状态
+  const [calculatedExposureTime, setCalculatedExposureTime] = useState<number | null>(null);
+  const [isExposureTimeLocked, setIsExposureTimeLocked] = useState<boolean>(false);
+
+  // 计算总接害时间
+  const calculateTotalExposureTime = (hireDate: any, workStartDate: any, preHireExposureTime: number | null, currentStatus: string) => {
+    // 如果员工状态为非在职，不进行计算
+    if (currentStatus && currentStatus !== '在职') {
+      return null;
+    }
+
+    let totalTime = 0;
+    
+    // 添加入职前接害时间
+    if (preHireExposureTime && preHireExposureTime > 0) {
+      totalTime += preHireExposureTime;
+    }
+    
+    // 计算入职后接害时间
+    if (hireDate && workStartDate) {
+      const hire = dayjs(hireDate);
+      const workStart = dayjs(workStartDate);
+      const now = dayjs();
+      
+      // 使用较晚的日期作为接害开始时间
+      const exposureStartDate = hire.isAfter(workStart) ? hire : workStart;
+      
+      // 计算从接害开始到现在的年数
+      const yearsWorked = now.diff(exposureStartDate, 'year', true);
+      
+      if (yearsWorked > 0) {
+        totalTime += yearsWorked;
+      }
+    }
+    
+    return totalTime > 0 ? totalTime : null;
+  };
 
   // 加载员工数据
   const fetchEmployees = async () => {
@@ -86,6 +124,80 @@ const Employees: React.FC = () => {
   useEffect(() => {
     fetchEmployees();
   }, []);
+
+  // 监听表单字段变化，实时计算总接害时间
+  useEffect(() => {
+    if (!isModalVisible) return;
+
+    const subscription = modalForm.getFieldsValue();
+    const { hire_date, work_start_date, pre_hire_exposure_time, status } = subscription;
+    
+    // 检查状态变化
+    const currentStatus = status || '在职';
+    const shouldLock = currentStatus !== '在职';
+    
+    if (shouldLock !== isExposureTimeLocked) {
+      setIsExposureTimeLocked(shouldLock);
+      
+      // 如果状态变为非在职，锁定当前值
+      if (shouldLock && editingEmployee) {
+        setCalculatedExposureTime(editingEmployee.total_exposure_time || null);
+        return;
+      }
+    }
+    
+    // 如果状态为非在职，不进行计算
+    if (shouldLock) {
+      return;
+    }
+    
+    // 计算总接害时间
+    const calculated = calculateTotalExposureTime(
+      hire_date,
+      work_start_date,
+      pre_hire_exposure_time,
+      currentStatus
+    );
+    
+    setCalculatedExposureTime(calculated);
+  }, [isModalVisible, modalForm, isExposureTimeLocked, editingEmployee]);
+
+  // 监听表单字段变化
+  const handleFormValuesChange = () => {
+    if (!isModalVisible) return;
+
+    const values = modalForm.getFieldsValue();
+    const { hire_date, work_start_date, pre_hire_exposure_time, status } = values;
+    
+    // 检查状态变化
+    const currentStatus = status || '在职';
+    const shouldLock = currentStatus !== '在职';
+    
+    if (shouldLock !== isExposureTimeLocked) {
+      setIsExposureTimeLocked(shouldLock);
+      
+      // 如果状态变为非在职，锁定当前值
+      if (shouldLock && editingEmployee) {
+        setCalculatedExposureTime(editingEmployee.total_exposure_time || null);
+        return;
+      }
+    }
+    
+    // 如果状态为非在职，不进行计算
+    if (shouldLock) {
+      return;
+    }
+    
+    // 计算总接害时间
+    const calculated = calculateTotalExposureTime(
+      hire_date,
+      work_start_date,
+      pre_hire_exposure_time,
+      currentStatus
+    );
+    
+    setCalculatedExposureTime(calculated);
+  };
 
   // 处理搜索
   const handleSearch = (values: SearchParams) => {
@@ -128,6 +240,8 @@ const Employees: React.FC = () => {
     setModalType('add');
     setEditingEmployee(null);
     modalForm.resetFields();
+    setCalculatedExposureTime(null);
+    setIsExposureTimeLocked(false);
     setIsModalVisible(true);
   };
 
@@ -135,11 +249,29 @@ const Employees: React.FC = () => {
   const handleEditEmployee = (employee: Employee) => {
     setModalType('edit');
     setEditingEmployee(employee);
+    
+    // 检查员工状态，如果非在职则锁定总接害时间
+    const isLocked = Boolean(employee.status && employee.status !== '在职');
+    setIsExposureTimeLocked(isLocked);
+    
+    // 如果是在职状态，计算总接害时间
+    if (!isLocked) {
+      const calculated = calculateTotalExposureTime(
+        employee.hire_date,
+        employee.work_start_date,
+        employee.pre_hire_exposure_time,
+        employee.status || '在职'
+      );
+      setCalculatedExposureTime(calculated);
+    } else {
+      setCalculatedExposureTime(employee.total_exposure_time || null);
+    }
+    
     modalForm.setFieldsValue({
       ...employee,
-      birth_date: employee.birth_date ? moment(employee.birth_date) : null,
-      hire_date: employee.hire_date ? moment(employee.hire_date) : null,
-      work_start_date: employee.work_start_date ? moment(employee.work_start_date) : null,
+      birth_date: employee.birth_date ? dayjs(employee.birth_date) : null,
+      hire_date: employee.hire_date ? dayjs(employee.hire_date) : null,
+      work_start_date: employee.work_start_date ? dayjs(employee.work_start_date) : null,
     });
     setIsModalVisible(true);
   };
@@ -168,6 +300,11 @@ const Employees: React.FC = () => {
         work_start_date: values.work_start_date ? values.work_start_date.format('YYYY-MM-DD') : null,
       };
 
+      // 使用计算的总接害时间或锁定的值
+      if (calculatedExposureTime !== null) {
+        formattedValues.total_exposure_time = calculatedExposureTime;
+      }
+
       if (modalType === 'add') {
         await apiClient.post(API_ENDPOINTS.EMPLOYEES, formattedValues);
         message.success('添加员工成功');
@@ -178,6 +315,8 @@ const Employees: React.FC = () => {
       
       setIsModalVisible(false);
       modalForm.resetFields();
+      setCalculatedExposureTime(null);
+      setIsExposureTimeLocked(false);
       fetchEmployees(); // 重新获取数据
     } catch (error) {
         message.error(modalType === 'add' ? '添加失败' : '更新失败');
@@ -191,6 +330,8 @@ const Employees: React.FC = () => {
     setIsModalVisible(false);
     modalForm.resetFields();
     setEditingEmployee(null);
+    setCalculatedExposureTime(null);
+    setIsExposureTimeLocked(false);
   };
 
   // 筛选和排序逻辑
@@ -495,6 +636,7 @@ const Employees: React.FC = () => {
           form={modalForm}
           layout="vertical"
           onFinish={handleSubmit}
+          onValuesChange={handleFormValuesChange}
         >
           <Row gutter={16}>
             <Col span={12}>
@@ -560,6 +702,9 @@ const Employees: React.FC = () => {
                   style={{ width: '100%' }} 
                   placeholder="请选择出生日期"
                   format="YYYY-MM-DD"
+                  changeOnBlur
+                  allowClear
+                  showToday={false}
                 />
               </Form.Item>
             </Col>
@@ -575,6 +720,9 @@ const Employees: React.FC = () => {
                   style={{ width: '100%' }} 
                   placeholder="请选择入职时间"
                   format="YYYY-MM-DD"
+                  changeOnBlur
+                  allowClear
+                  showToday={false}
                 />
               </Form.Item>
             </Col>
@@ -587,6 +735,9 @@ const Employees: React.FC = () => {
                   style={{ width: '100%' }} 
                   placeholder="请选择参加工作时间"
                   format="YYYY-MM-DD"
+                  changeOnBlur
+                  allowClear
+                  showToday={false}
                 />
               </Form.Item>
             </Col>
@@ -616,12 +767,33 @@ const Employees: React.FC = () => {
               <Form.Item
                 name="total_exposure_time"
                 label="总接害时间(年)"
+                help={
+                  isExposureTimeLocked 
+                    ? "员工状态为非在职，总接害时间已锁定" 
+                    : calculatedExposureTime !== null 
+                      ? "系统自动计算，基于入职时间、参加工作时间和入职前接害时间"
+                      : "请填写入职时间、参加工作时间等信息，系统将自动计算"
+                }
               >
                 <Input 
-                  type="number" 
-                  step="0.5" 
-                  min="0" 
-                  placeholder="请输入总接害时间" 
+                  value={
+                    calculatedExposureTime !== null 
+                      ? (() => {
+                          const roundedValue = Math.floor(calculatedExposureTime * 2) / 2;
+                          return roundedValue.toFixed(roundedValue % 1 === 0 ? 0 : 1);
+                        })()
+                      : ''
+                  }
+                  placeholder={
+                    isExposureTimeLocked 
+                      ? "已锁定" 
+                      : "系统自动计算"
+                  }
+                  readOnly
+                  style={{ 
+                    backgroundColor: isExposureTimeLocked ? '#f5f5f5' : '#fafafa',
+                    cursor: 'not-allowed'
+                  }}
                 />
               </Form.Item>
             </Col>

@@ -4,7 +4,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, HistoryOutlined } from '@an
 import { useNavigate } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
 import apiClient from '../config/axios';
-import moment from 'moment';
+import dayjs from 'dayjs';
 import { API_ENDPOINTS } from '../config/api';
 import ImportExportButtons from '../components/ImportExportButtons';
 import CollapsibleFilter from '../components/CollapsibleFilter';
@@ -55,6 +55,13 @@ const Supplies: React.FC = () => {
   const [editingSupply, setEditingSupply] = useState<Supply | null>(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [modalForm] = Form.useForm();
+
+  // 批量操作状态
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [selectedRows, setSelectedRows] = useState<Supply[]>([]);
+  const [batchModalVisible, setBatchModalVisible] = useState(false);
+  const [batchOperationType, setBatchOperationType] = useState<'update' | 'delete'>('update');
+  const [batchForm] = Form.useForm();
 
   const handleTableChange = (pagination: any, filters: any, sorter: any) => {
     if (sorter.field || sorter.order) {
@@ -129,7 +136,7 @@ const Supplies: React.FC = () => {
     setEditingSupply(supply);
     modalForm.setFieldsValue({
       ...supply,
-      production_date: supply.production_date ? moment(supply.production_date) : null,
+      production_date: supply.production_date ? dayjs(supply.production_date) : null,
     });
     setIsModalVisible(true);
   };
@@ -186,6 +193,105 @@ const Supplies: React.FC = () => {
   const handleCancel = () => {
     setIsModalVisible(false);
     modalForm.resetFields();
+    setEditingSupply(null);
+  };
+
+  // 批量操作相关函数
+  const handleBatchUpdate = () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先选择要更新的物资');
+      return;
+    }
+    setBatchOperationType('update');
+    batchForm.resetFields();
+    setBatchModalVisible(true);
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先选择要删除的物资');
+      return;
+    }
+    setBatchOperationType('delete');
+    setBatchModalVisible(true);
+  };
+
+  const handleBatchSubmit = async () => {
+    try {
+      if (batchOperationType === 'delete') {
+        // 批量删除
+        const response = await apiClient.delete(API_ENDPOINTS.SUPPLIES_BATCH, {
+          data: { ids: selectedRowKeys }
+        });
+        if (response.data.success) {
+          message.success(`成功删除 ${selectedRowKeys.length} 个物资`);
+          setSelectedRowKeys([]);
+          setSelectedRows([]);
+          setBatchModalVisible(false);
+          fetchSupplies();
+        } else {
+          message.error('批量删除失败');
+        }
+      } else {
+        // 批量更新
+        const values = await batchForm.validateFields();
+        const updateData: any = {};
+        
+        // 只包含用户填写的字段
+        if (values.supply_name) updateData.supply_name = values.supply_name;
+        if (values.storage_location) updateData.storage_location = values.storage_location;
+        if (values.production_date) updateData.production_date = values.production_date.format('YYYY-MM-DD');
+        if (values.validity_period_days !== undefined) updateData.validity_period_days = values.validity_period_days;
+        if (values.supply_number !== undefined) updateData.supply_number = values.supply_number;
+
+        if (Object.keys(updateData).length === 0) {
+          message.warning('请至少填写一个要更新的字段');
+          return;
+        }
+
+        const response = await apiClient.put(API_ENDPOINTS.SUPPLIES_BATCH, {
+          ids: selectedRowKeys,
+          updateData
+        });
+
+        if (response.data.success) {
+          message.success(`成功更新 ${selectedRowKeys.length} 个物资`);
+          setSelectedRowKeys([]);
+          setSelectedRows([]);
+          setBatchModalVisible(false);
+          batchForm.resetFields();
+          fetchSupplies();
+        } else {
+          message.error('批量更新失败');
+        }
+      }
+    } catch (error) {
+      message.error(batchOperationType === 'delete' ? '批量删除失败' : '批量更新失败');
+    }
+  };
+
+  const handleBatchCancel = () => {
+    setBatchModalVisible(false);
+    batchForm.resetFields();
+  };
+
+  // 行选择配置
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: (newSelectedRowKeys: React.Key[], newSelectedRows: Supply[]) => {
+      setSelectedRowKeys(newSelectedRowKeys);
+      setSelectedRows(newSelectedRows);
+    },
+    onSelectAll: (selected: boolean, selectedRows: Supply[], changeRows: Supply[]) => {
+      if (selected) {
+        const newKeys = displaySupplies.map(item => item.id);
+        setSelectedRowKeys(newKeys);
+        setSelectedRows(displaySupplies);
+      } else {
+        setSelectedRowKeys([]);
+        setSelectedRows([]);
+      }
+    },
   };
 
   const handleSearch = (values: typeof searchParams) => {
@@ -518,7 +624,7 @@ const Supplies: React.FC = () => {
           fullData={supplies}
           onImportSuccess={fetchSupplies}
           fileNamePrefix="物资信息"
-          requiredFields={['物资名称', '存放位置', '生产日期', '有效期天数', '编号']}
+          requiredFields={['物资名称', '存储位置', '生产日期', '有效期天数', '编号']}
         />
         <Button 
           type="default" 
@@ -554,29 +660,72 @@ const Supplies: React.FC = () => {
           <DatePicker 
             format="YYYY-MM-DD" 
             onChange={date => date && setSearchParams(prev => ({...prev, production_date: date.format('YYYY-MM-DD')}))} 
-            style={{ width: '100%' }} 
+            style={{ width: '100%' }}
+            changeOnBlur
+            allowClear
+            showToday={false}
           />
         </Form.Item>
         <Form.Item name="expiration_start" label="过期开始时间">
           <DatePicker 
             format="YYYY-MM-DD" 
             onChange={date => date && setSearchParams(prev => ({...prev, expiration_start: date.format('YYYY-MM-DD')}))} 
-            style={{ width: '100%' }} 
+            style={{ width: '100%' }}
+            changeOnBlur
+            allowClear
+            showToday={false}
           />
         </Form.Item>
         <Form.Item name="expiration_end" label="过期结束时间">
           <DatePicker 
             format="YYYY-MM-DD" 
             onChange={date => date && setSearchParams(prev => ({...prev, expiration_end: date.format('YYYY-MM-DD')}))} 
-            style={{ width: '100%' }} 
+            style={{ width: '100%' }}
+            changeOnBlur
+            allowClear
+            showToday={false}
           />
         </Form.Item>
       </CollapsibleFilter>
+      
+      {/* 批量操作按钮 */}
+      {selectedRowKeys.length > 0 && (
+        <div style={{ marginBottom: 16, padding: 16, backgroundColor: '#f0f2f5', borderRadius: 6 }}>
+          <Space>
+            <span>已选择 {selectedRowKeys.length} 项</span>
+            <Button 
+              type="primary" 
+              icon={<EditOutlined />}
+              onClick={handleBatchUpdate}
+            >
+              批量更新
+            </Button>
+            <Popconfirm
+              title={`确定要删除选中的 ${selectedRowKeys.length} 个物资吗？`}
+              onConfirm={handleBatchDelete}
+              okText="确定"
+              cancelText="取消"
+            >
+              <Button 
+                danger 
+                icon={<DeleteOutlined />}
+              >
+                批量删除
+              </Button>
+            </Popconfirm>
+            <Button onClick={() => {setSelectedRowKeys([]); setSelectedRows([])}}>
+              取消选择
+            </Button>
+          </Space>
+        </div>
+      )}
+
       <Spin spinning={loading} tip="加载中...">
         <Table 
           dataSource={displaySupplies} 
           columns={columns} 
           rowKey="id" 
+          rowSelection={rowSelection}
           onChange={handleTableChange}
           pagination={{ 
             current: currentPage,
@@ -634,6 +783,9 @@ const Supplies: React.FC = () => {
                   format="YYYY-MM-DD" 
                   style={{ width: '100%' }}
                   placeholder="请选择生产日期"
+                  changeOnBlur
+                  allowClear
+                  showToday={false}
                 />
               </Form.Item>
             </Col>
@@ -685,6 +837,105 @@ const Supplies: React.FC = () => {
             </Col>
           </Row>
         </Form>
+      </Modal>
+
+      {/* 批量操作模态框 */}
+      <Modal
+        title={batchOperationType === 'update' ? '批量更新物资' : '批量删除物资'}
+        open={batchModalVisible}
+        onOk={handleBatchSubmit}
+        onCancel={handleBatchCancel}
+        confirmLoading={submitLoading}
+        width={600}
+        okText="确定"
+        cancelText="取消"
+      >
+        {batchOperationType === 'delete' ? (
+          <div>
+            <p>确定要删除以下 {selectedRowKeys.length} 个物资吗？</p>
+            <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid #d9d9d9', padding: 8, borderRadius: 4 }}>
+              {selectedRows.map(item => (
+                <div key={item.id} style={{ padding: '4px 0', borderBottom: '1px solid #f0f0f0' }}>
+                  {item.supply_name} - {item.storage_location}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <p style={{ marginBottom: 16, color: '#666' }}>
+              将对选中的 {selectedRowKeys.length} 个物资进行批量更新。只填写需要更新的字段，未填写的字段将保持原值。
+            </p>
+            <Form
+              form={batchForm}
+              layout="vertical"
+            >
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item
+                    name="supply_name"
+                    label="物资名称"
+                  >
+                    <Input placeholder="留空则不更新" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item
+                    name="storage_location"
+                    label="存储位置"
+                  >
+                    <Input placeholder="留空则不更新" />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item
+                    name="production_date"
+                    label="生产日期"
+                  >
+                    <DatePicker 
+                      style={{ width: '100%' }} 
+                      placeholder="留空则不更新"
+                      format="YYYY-MM-DD"
+                      changeOnBlur
+                      allowClear
+                      showToday={false}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item
+                    name="validity_period_days"
+                    label="有效期(天)"
+                  >
+                    <Input 
+                      type="number" 
+                      min="0" 
+                      placeholder="留空则不更新" 
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Item
+                    name="supply_number"
+                    label="编号"
+                  >
+                    <Input 
+                      type="number" 
+                      min="0" 
+                      placeholder="留空则不更新" 
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Form>
+          </div>
+        )}
       </Modal>
     </Card>
   );

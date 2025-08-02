@@ -205,12 +205,14 @@ const ShiftCalendarComponent: React.FC = () => {
               setSelectedDate(newValue);
             };
             
-            // 日期选择器变更处理函数
+            // 日期选择器变更处理函数 - 添加防抖处理
             const handleDatePickerChange = (date: Dayjs | null) => {
-              if (date) {
-                onChange(date);
-                setCurrentMonth(date);
-                setSelectedDate(date);
+              if (date && date.isValid()) {
+                // 防止异常跳转，确保日期有效
+                const validDate = date.clone();
+                onChange(validDate);
+                setCurrentMonth(validDate);
+                setSelectedDate(validDate);
               }
             };
             
@@ -225,6 +227,9 @@ const ShiftCalendarComponent: React.FC = () => {
                     onChange={handleDatePickerChange} 
                     allowClear={false}
                     size="small"
+                    changeOnBlur
+                    showToday={false}
+                    inputReadOnly
                   />
                 </div>
                 <Title level={4} style={{ margin: 0 }}>{year}年{month + 1}月</Title>

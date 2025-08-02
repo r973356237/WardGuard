@@ -380,3 +380,251 @@ exports.batchImportMedicines = async (req, res) => {
     }
   }
 };
+
+/**
+ * 批量更新药品
+ */
+exports.batchUpdateMedicines = async (req, res) => {
+  console.log('收到批量更新药品请求:', req.body);
+  let connection;
+  
+  try {
+    const { ids, updateData } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: '请选择要更新的药品' });
+    }
+
+    if (!updateData || Object.keys(updateData).length === 0) {
+      return res.status(400).json({ success: false, message: '请提供要更新的数据' });
+    }
+
+    const pool = await getPool();
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      const results = {
+        success: 0,
+        failed: 0,
+        errors: []
+      };
+
+      for (const id of ids) {
+        try {
+          // 先获取原始药品信息
+          const [originalMedicine] = await connection.execute('SELECT * FROM medicines WHERE id = ?', [id]);
+          
+          if (originalMedicine.length === 0) {
+            results.failed++;
+            results.errors.push(`ID ${id} 的药品不存在`);
+            continue;
+          }
+
+          const original = originalMedicine[0];
+          
+          // 构建更新数据，只更新提供的字段
+          const fieldsToUpdate = [];
+          const valuesToUpdate = [];
+          
+          if (updateData.medicine_name !== undefined && updateData.medicine_name !== null) {
+            fieldsToUpdate.push('medicine_name = ?');
+            valuesToUpdate.push(updateData.medicine_name);
+          }
+          
+          if (updateData.storage_location !== undefined && updateData.storage_location !== null) {
+            fieldsToUpdate.push('storage_location = ?');
+            valuesToUpdate.push(updateData.storage_location);
+          }
+          
+          if (updateData.production_date !== undefined && updateData.production_date !== null) {
+            fieldsToUpdate.push('production_date = ?');
+            valuesToUpdate.push(updateData.production_date);
+          }
+          
+          if (updateData.validity_period_days !== undefined && updateData.validity_period_days !== null) {
+            fieldsToUpdate.push('validity_period_days = ?');
+            valuesToUpdate.push(updateData.validity_period_days);
+          }
+          
+          if (updateData.quantity !== undefined && updateData.quantity !== null) {
+            fieldsToUpdate.push('quantity = ?');
+            valuesToUpdate.push(updateData.quantity);
+          }
+
+          // 如果更新了生产日期或有效期，需要重新计算过期日期
+          if (updateData.production_date || updateData.validity_period_days) {
+            const productionDate = updateData.production_date || original.production_date;
+            const validityDays = updateData.validity_period_days || original.validity_period_days;
+            
+            const expiration_date = new Date(productionDate);
+            expiration_date.setDate(expiration_date.getDate() + parseInt(validityDays));
+            
+            fieldsToUpdate.push('expiration_date = ?');
+            valuesToUpdate.push(expiration_date);
+          }
+
+          if (fieldsToUpdate.length === 0) {
+            results.failed++;
+            results.errors.push(`ID ${id} 没有需要更新的字段`);
+            continue;
+          }
+
+          // 执行更新
+          valuesToUpdate.push(id);
+          const updateQuery = `UPDATE medicines SET ${fieldsToUpdate.join(', ')} WHERE id = ?`;
+          
+          const [result] = await connection.execute(updateQuery, valuesToUpdate);
+
+          if (result.affectedRows > 0) {
+            results.success++;
+            
+            // 添加操作记录
+            try {
+              await addOperationRecord(
+                req.user?.id,
+                'update',
+                'medicine',
+                id,
+                updateData.medicine_name || original.medicine_name,
+                {
+                  batch_update: true,
+                  updated_fields: updateData,
+                  original_data: original
+                }
+              );
+            } catch (recordErr) {
+              console.error('保存药品批量更新操作记录失败:', recordErr.message);
+            }
+          } else {
+            results.failed++;
+            results.errors.push(`ID ${id} 更新失败`);
+          }
+
+        } catch (error) {
+          results.failed++;
+          results.errors.push(`ID ${id} 更新失败: ${error.message}`);
+          console.error(`批量更新药品 ID ${id} 失败:`, error);
+        }
+      }
+
+      await connection.commit();
+
+      console.log('批量更新药品完成，成功:', results.success, '失败:', results.failed);
+      res.json({
+        success: true,
+        message: `批量更新完成，成功 ${results.success} 条，失败 ${results.failed} 条`,
+        data: results
+      });
+
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    }
+
+  } catch (err) {
+    console.error('批量更新药品错误:', err);
+    res.status(500).json({ success: false, message: '服务器错误', error: err.message });
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+};
+
+/**
+ * 批量删除药品
+ */
+exports.batchDeleteMedicines = async (req, res) => {
+  console.log('收到批量删除药品请求:', req.body);
+  let connection;
+  
+  try {
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: '请选择要删除的药品' });
+    }
+
+    const pool = await getPool();
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      const results = {
+        success: 0,
+        failed: 0,
+        errors: []
+      };
+
+      for (const id of ids) {
+        try {
+          // 先获取药品信息用于操作记录
+          const [medicineInfo] = await connection.execute('SELECT medicine_name FROM medicines WHERE id = ?', [id]);
+          
+          if (medicineInfo.length === 0) {
+            results.failed++;
+            results.errors.push(`ID ${id} 的药品不存在`);
+            continue;
+          }
+
+          const medicineName = medicineInfo[0].medicine_name;
+
+          // 执行删除
+          const [result] = await connection.execute('DELETE FROM medicines WHERE id = ?', [id]);
+
+          if (result.affectedRows > 0) {
+            results.success++;
+            
+            // 添加操作记录
+            try {
+              await addOperationRecord(
+                req.user?.id,
+                'delete',
+                'medicine',
+                id,
+                medicineName,
+                {
+                  batch_delete: true,
+                  deleted_medicine_id: id,
+                  deleted_medicine_name: medicineName
+                }
+              );
+            } catch (recordErr) {
+              console.error('保存药品批量删除操作记录失败:', recordErr.message);
+            }
+          } else {
+            results.failed++;
+            results.errors.push(`ID ${id} 删除失败`);
+          }
+
+        } catch (error) {
+          results.failed++;
+          results.errors.push(`ID ${id} 删除失败: ${error.message}`);
+          console.error(`批量删除药品 ID ${id} 失败:`, error);
+        }
+      }
+
+      await connection.commit();
+
+      console.log('批量删除药品完成，成功:', results.success, '失败:', results.failed);
+      res.json({
+        success: true,
+        message: `批量删除完成，成功 ${results.success} 条，失败 ${results.failed} 条`,
+        data: results
+      });
+
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    }
+
+  } catch (err) {
+    console.error('批量删除药品错误:', err);
+    res.status(500).json({ success: false, message: '服务器错误', error: err.message });
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+};

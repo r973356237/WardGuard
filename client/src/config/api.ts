@@ -9,14 +9,14 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 // API 基础地址配置
 export const API_CONFIG = {
   // 开发环境：使用代理或本地地址
-  DEVELOPMENT_BASE_URL: 'http://localhost:3000',
+  DEVELOPMENT_BASE_URL: 'http://localhost:3001',
   
   // 生产环境：使用当前域名和端口
   PRODUCTION_BASE_URL: window.location.origin,
   
   // 根据环境自动选择
   BASE_URL: isDevelopment 
-    ? 'http://localhost:3000'  // 开发环境
+    ? 'http://localhost:3001'  // 开发环境
     : window.location.origin,  // 生产环境使用当前域名
 };
 
@@ -40,9 +40,11 @@ export const API_ENDPOINTS = {
   
   // 物资相关
   SUPPLIES: '/api/supplies',
+  SUPPLIES_BATCH: '/api/supplies/batch',
   
   // 药品相关
   MEDICINES: '/api/medicines',
+  MEDICINES_BATCH: '/api/medicines/batch',
   
   // 员工相关
   EMPLOYEES: '/api/employees',

@@ -482,7 +482,7 @@ exports.batchImportSupplies = async (req, res) => {
           });
           
           if (!supply_name || !storage_location || !production_date || !validity_period_days || !supply_number) {
-            const errorMsg = `第${i + 1}行：物资名称、存放位置、生产日期、有效期天数、编号为必填项`;
+            const errorMsg = `第${i + 1}行：物资名称、存储位置、生产日期、有效期天数、编号为必填项`;
             console.log('验证失败:', errorMsg);
             results.failed++;
             results.errors.push(errorMsg);
@@ -562,6 +562,254 @@ exports.batchImportSupplies = async (req, res) => {
     res.status(500).json({ success: false, message: '服务器错误', error: err.message });
   } finally {
     // 释放连接
+    if (connection) {
+      connection.release();
+    }
+  }
+};
+
+/**
+ * 批量更新物资
+ */
+exports.batchUpdateSupplies = async (req, res) => {
+  console.log('收到批量更新物资请求:', req.body);
+  let connection;
+  
+  try {
+    const { ids, updateData } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: '请选择要更新的物资' });
+    }
+
+    if (!updateData || Object.keys(updateData).length === 0) {
+      return res.status(400).json({ success: false, message: '请提供要更新的数据' });
+    }
+
+    const pool = await getPool();
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      const results = {
+        success: 0,
+        failed: 0,
+        errors: []
+      };
+
+      for (const id of ids) {
+        try {
+          // 先获取原始物资信息
+          const [originalSupply] = await connection.execute('SELECT * FROM supplies WHERE id = ?', [id]);
+          
+          if (originalSupply.length === 0) {
+            results.failed++;
+            results.errors.push(`ID ${id} 的物资不存在`);
+            continue;
+          }
+
+          const original = originalSupply[0];
+          
+          // 构建更新数据，只更新提供的字段
+          const fieldsToUpdate = [];
+          const valuesToUpdate = [];
+          
+          if (updateData.supply_name !== undefined && updateData.supply_name !== null) {
+            fieldsToUpdate.push('supply_name = ?');
+            valuesToUpdate.push(updateData.supply_name);
+          }
+          
+          if (updateData.storage_location !== undefined && updateData.storage_location !== null) {
+            fieldsToUpdate.push('storage_location = ?');
+            valuesToUpdate.push(updateData.storage_location);
+          }
+          
+          if (updateData.production_date !== undefined && updateData.production_date !== null) {
+            fieldsToUpdate.push('production_date = ?');
+            valuesToUpdate.push(updateData.production_date);
+          }
+          
+          if (updateData.validity_period_days !== undefined && updateData.validity_period_days !== null) {
+            fieldsToUpdate.push('validity_period_days = ?');
+            valuesToUpdate.push(updateData.validity_period_days);
+          }
+          
+          if (updateData.supply_number !== undefined && updateData.supply_number !== null) {
+            fieldsToUpdate.push('supply_number = ?');
+            valuesToUpdate.push(updateData.supply_number);
+          }
+
+          // 如果更新了生产日期或有效期，需要重新计算过期日期
+          if (updateData.production_date || updateData.validity_period_days) {
+            const productionDate = updateData.production_date || original.production_date;
+            const validityDays = updateData.validity_period_days || original.validity_period_days;
+            
+            const expiration_date = new Date(productionDate);
+            expiration_date.setDate(expiration_date.getDate() + parseInt(validityDays));
+            
+            fieldsToUpdate.push('expiration_date = ?');
+            valuesToUpdate.push(expiration_date);
+          }
+
+          if (fieldsToUpdate.length === 0) {
+            results.failed++;
+            results.errors.push(`ID ${id} 没有需要更新的字段`);
+            continue;
+          }
+
+          // 执行更新
+          valuesToUpdate.push(id);
+          const updateQuery = `UPDATE supplies SET ${fieldsToUpdate.join(', ')} WHERE id = ?`;
+          
+          const [result] = await connection.execute(updateQuery, valuesToUpdate);
+
+          if (result.affectedRows > 0) {
+            results.success++;
+            
+            // 添加操作记录
+            try {
+              await addOperationRecord(
+                req.user?.id,
+                'update',
+                'supply',
+                id,
+                updateData.supply_name || original.supply_name,
+                {
+                  batch_update: true,
+                  updated_fields: updateData,
+                  original_data: original
+                }
+              );
+            } catch (recordErr) {
+              console.error('保存物资批量更新操作记录失败:', recordErr.message);
+            }
+          } else {
+            results.failed++;
+            results.errors.push(`ID ${id} 更新失败`);
+          }
+
+        } catch (error) {
+          results.failed++;
+          results.errors.push(`ID ${id} 更新失败: ${error.message}`);
+          console.error(`批量更新物资 ID ${id} 失败:`, error);
+        }
+      }
+
+      await connection.commit();
+
+      console.log('批量更新物资完成，成功:', results.success, '失败:', results.failed);
+      res.json({
+        success: true,
+        message: `批量更新完成，成功 ${results.success} 条，失败 ${results.failed} 条`,
+        data: results
+      });
+
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    }
+
+  } catch (err) {
+    console.error('批量更新物资错误:', err);
+    res.status(500).json({ success: false, message: '服务器错误', error: err.message });
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+};
+
+/**
+ * 批量删除物资
+ */
+exports.batchDeleteSupplies = async (req, res) => {
+  console.log('收到批量删除物资请求:', req.body);
+  let connection;
+  
+  try {
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: '请选择要删除的物资' });
+    }
+
+    const pool = await getPool();
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      const results = {
+        success: 0,
+        failed: 0,
+        errors: []
+      };
+
+      for (const id of ids) {
+        try {
+          // 先获取物资信息用于操作记录
+          const [supplyInfo] = await connection.execute('SELECT supply_name FROM supplies WHERE id = ?', [id]);
+          
+          if (supplyInfo.length === 0) {
+            results.failed++;
+            results.errors.push(`ID ${id} 的物资不存在`);
+            continue;
+          }
+
+          const supplyName = supplyInfo[0].supply_name;
+
+          // 执行删除
+          const [result] = await connection.execute('DELETE FROM supplies WHERE id = ?', [id]);
+
+          if (result.affectedRows > 0) {
+            results.success++;
+            
+            // 添加操作记录
+            try {
+              await addOperationRecord(
+                req.user?.id,
+                'delete',
+                'supply',
+                id,
+                supplyName,
+                {
+                  batch_delete: true,
+                  deleted_supply_id: id,
+                  deleted_supply_name: supplyName
+                }
+              );
+            } catch (recordErr) {
+              console.error('保存物资批量删除操作记录失败:', recordErr.message);
+            }
+          } else {
+            results.failed++;
+            results.errors.push(`ID ${id} 删除失败`);
+          }
+
+        } catch (error) {
+          results.failed++;
+          results.errors.push(`ID ${id} 删除失败: ${error.message}`);
+          console.error(`批量删除物资 ID ${id} 失败:`, error);
+        }
+      }
+
+      await connection.commit();
+
+      console.log('批量删除物资完成，成功:', results.success, '失败:', results.failed);
+      res.json({
+        success: true,
+        message: `批量删除完成，成功 ${results.success} 条，失败 ${results.failed} 条`,
+        data: results
+      });
+
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    }
+
+  } catch (err) {
+    console.error('批量删除物资错误:', err);
+    res.status(500).json({ success: false, message: '服务器错误', error: err.message });
+  } finally {
     if (connection) {
       connection.release();
     }

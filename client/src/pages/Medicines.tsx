@@ -3,7 +3,7 @@ import { Card, Table, Form, Input, Button, Spin, Space, Modal, Popconfirm, Row, 
 import { PlusOutlined, EditOutlined, DeleteOutlined, HistoryOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import apiClient from '../config/axios';
-import moment from 'moment';
+import dayjs from 'dayjs';
 import { API_ENDPOINTS } from '../config/api';
 import { useNavigate } from 'react-router-dom';
 import ImportExportButtons from '../components/ImportExportButtons';
@@ -45,11 +45,18 @@ const Medicines: React.FC = () => {
   });
 
   // 模态框状态
-  const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
+  const [isModalVisible, setIsModalVisible] = useState(false);
   const [modalType, setModalType] = useState<'add' | 'edit'>('add');
   const [editingMedicine, setEditingMedicine] = useState<Medicine | null>(null);
-  const [submitLoading, setSubmitLoading] = useState<boolean>(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
   const [modalForm] = Form.useForm();
+
+  // 批量操作状态
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [selectedRows, setSelectedRows] = useState<Medicine[]>([]);
+  const [batchModalVisible, setBatchModalVisible] = useState(false);
+  const [batchOperationType, setBatchOperationType] = useState<'update' | 'delete'>('update');
+  const [batchForm] = Form.useForm();
 
   const handleTableChange = (pagination: any, filters: any, sorter: any) => {
     // 处理排序变化
@@ -94,7 +101,7 @@ const Medicines: React.FC = () => {
   const handleExpiredMedicines = () => {
     setSearchParams(prev => ({
       ...prev,
-      expiration_end: moment().format('YYYY-MM-DD')
+      expiration_end: dayjs().format('YYYY-MM-DD')
     }));
     setCurrentPage(1);
   };
@@ -118,7 +125,7 @@ const Medicines: React.FC = () => {
     setEditingMedicine(medicine);
     modalForm.setFieldsValue({
       ...medicine,
-      production_date: medicine.production_date ? moment(medicine.production_date) : null,
+      production_date: medicine.production_date ? dayjs(medicine.production_date) : null,
     });
     setIsModalVisible(true);
   };
@@ -169,6 +176,104 @@ const Medicines: React.FC = () => {
     modalForm.resetFields();
     setEditingMedicine(null);
   };
+
+  // 批量操作相关函数
+  const handleBatchUpdate = () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先选择要更新的药品');
+      return;
+    }
+    setBatchOperationType('update');
+    batchForm.resetFields();
+    setBatchModalVisible(true);
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先选择要删除的药品');
+      return;
+    }
+    setBatchOperationType('delete');
+    setBatchModalVisible(true);
+  };
+
+  const handleBatchSubmit = async () => {
+    try {
+      if (batchOperationType === 'delete') {
+        // 批量删除
+        const response = await apiClient.delete(API_ENDPOINTS.MEDICINES_BATCH, {
+          data: { ids: selectedRowKeys }
+        });
+        if (response.data.success) {
+          message.success(`成功删除 ${selectedRowKeys.length} 个药品`);
+          setSelectedRowKeys([]);
+          setSelectedRows([]);
+          setBatchModalVisible(false);
+          fetchMedicines();
+        } else {
+          message.error('批量删除失败');
+        }
+      } else {
+        // 批量更新
+        const values = await batchForm.validateFields();
+        const updateData: any = {};
+        
+        // 只包含用户填写的字段
+        if (values.medicine_name) updateData.medicine_name = values.medicine_name;
+        if (values.storage_location) updateData.storage_location = values.storage_location;
+        if (values.production_date) updateData.production_date = values.production_date.format('YYYY-MM-DD');
+        if (values.validity_period_days !== undefined) updateData.validity_period_days = values.validity_period_days;
+        if (values.quantity !== undefined) updateData.quantity = values.quantity;
+
+        if (Object.keys(updateData).length === 0) {
+          message.warning('请至少填写一个要更新的字段');
+          return;
+        }
+
+        const response = await apiClient.put(API_ENDPOINTS.MEDICINES_BATCH, {
+          ids: selectedRowKeys,
+          updateData
+        });
+
+        if (response.data.success) {
+          message.success(`成功更新 ${selectedRowKeys.length} 个药品`);
+          setSelectedRowKeys([]);
+          setSelectedRows([]);
+          setBatchModalVisible(false);
+          batchForm.resetFields();
+          fetchMedicines();
+        } else {
+          message.error('批量更新失败');
+        }
+      }
+    } catch (error) {
+      message.error(batchOperationType === 'delete' ? '批量删除失败' : '批量更新失败');
+    }
+  };
+
+  const handleBatchCancel = () => {
+    setBatchModalVisible(false);
+    batchForm.resetFields();
+  };
+
+  // 行选择配置
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: (newSelectedRowKeys: React.Key[], newSelectedRows: Medicine[]) => {
+      setSelectedRowKeys(newSelectedRowKeys);
+      setSelectedRows(newSelectedRows);
+    },
+    onSelectAll: (selected: boolean, selectedRows: Medicine[], changeRows: Medicine[]) => {
+      if (selected) {
+        const newKeys = displayMedicines.map(item => item.id);
+        setSelectedRowKeys(newKeys);
+        setSelectedRows(displayMedicines);
+      } else {
+        setSelectedRowKeys([]);
+        setSelectedRows([]);
+      }
+    },
+   };
 
   // 处理筛选和排序
   useEffect(() => {
@@ -533,29 +638,72 @@ const Medicines: React.FC = () => {
           <DatePicker 
             format="YYYY-MM-DD" 
             onChange={date => date && setSearchParams(prev => ({...prev, production_date: date.format('YYYY-MM-DD')}))} 
-            style={{ width: '100%' }} 
+            style={{ width: '100%' }}
+            changeOnBlur
+            allowClear
+            showToday={false}
           />
         </Form.Item>
         <Form.Item name="expiration_start" label="过期开始时间">
           <DatePicker 
             format="YYYY-MM-DD" 
             onChange={date => date && setSearchParams(prev => ({...prev, expiration_start: date.format('YYYY-MM-DD')}))} 
-            style={{ width: '100%' }} 
+            style={{ width: '100%' }}
+            changeOnBlur
+            allowClear
+            showToday={false}
           />
         </Form.Item>
         <Form.Item name="expiration_end" label="过期结束时间">
           <DatePicker 
             format="YYYY-MM-DD" 
             onChange={date => date && setSearchParams(prev => ({...prev, expiration_end: date.format('YYYY-MM-DD')}))} 
-            style={{ width: '100%' }} 
+            style={{ width: '100%' }}
+            changeOnBlur
+            allowClear
+            showToday={false}
           />
         </Form.Item>
       </CollapsibleFilter>
+      
+      {/* 批量操作按钮 */}
+      {selectedRowKeys.length > 0 && (
+        <div style={{ marginBottom: 16, padding: 16, backgroundColor: '#f0f2f5', borderRadius: 6 }}>
+          <Space>
+            <span>已选择 {selectedRowKeys.length} 项</span>
+            <Button 
+              type="primary" 
+              icon={<EditOutlined />}
+              onClick={handleBatchUpdate}
+            >
+              批量更新
+            </Button>
+            <Popconfirm
+              title={`确定要删除选中的 ${selectedRowKeys.length} 个药品吗？`}
+              onConfirm={handleBatchDelete}
+              okText="确定"
+              cancelText="取消"
+            >
+              <Button 
+                danger 
+                icon={<DeleteOutlined />}
+              >
+                批量删除
+              </Button>
+            </Popconfirm>
+            <Button onClick={() => {setSelectedRowKeys([]); setSelectedRows([])}}>
+              取消选择
+            </Button>
+          </Space>
+        </div>
+      )}
+
       <Spin spinning={loading} tip="加载中...">
         <Table 
           dataSource={displayMedicines} 
           columns={columns} 
           rowKey="id" 
+          rowSelection={rowSelection}
           onChange={handleTableChange}
           pagination={{ 
             current: currentPage,
@@ -616,6 +764,9 @@ const Medicines: React.FC = () => {
                   style={{ width: '100%' }} 
                   placeholder="请选择生产日期"
                   format="YYYY-MM-DD"
+                  changeOnBlur
+                  allowClear
+                  showToday={false}
                 />
               </Form.Item>
             </Col>
@@ -650,6 +801,105 @@ const Medicines: React.FC = () => {
             </Col>
           </Row>
         </Form>
+      </Modal>
+
+      {/* 批量操作模态框 */}
+      <Modal
+        title={batchOperationType === 'update' ? '批量更新药品' : '批量删除药品'}
+        open={batchModalVisible}
+        onOk={handleBatchSubmit}
+        onCancel={handleBatchCancel}
+        confirmLoading={submitLoading}
+        width={600}
+        okText="确定"
+        cancelText="取消"
+      >
+        {batchOperationType === 'delete' ? (
+          <div>
+            <p>确定要删除以下 {selectedRowKeys.length} 个药品吗？</p>
+            <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid #d9d9d9', padding: 8, borderRadius: 4 }}>
+              {selectedRows.map(item => (
+                <div key={item.id} style={{ padding: '4px 0', borderBottom: '1px solid #f0f0f0' }}>
+                  {item.medicine_name} - {item.storage_location}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <p style={{ marginBottom: 16, color: '#666' }}>
+              将对选中的 {selectedRowKeys.length} 个药品进行批量更新。只填写需要更新的字段，未填写的字段将保持原值。
+            </p>
+            <Form
+              form={batchForm}
+              layout="vertical"
+            >
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item
+                    name="medicine_name"
+                    label="药品名称"
+                  >
+                    <Input placeholder="留空则不更新" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item
+                    name="storage_location"
+                    label="存储位置"
+                  >
+                    <Input placeholder="留空则不更新" />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item
+                    name="production_date"
+                    label="生产日期"
+                  >
+                    <DatePicker 
+                      style={{ width: '100%' }} 
+                      placeholder="留空则不更新"
+                      format="YYYY-MM-DD"
+                      changeOnBlur
+                      allowClear
+                      showToday={false}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item
+                    name="validity_period_days"
+                    label="有效期(天)"
+                  >
+                    <Input 
+                      type="number" 
+                      min="0" 
+                      placeholder="留空则不更新" 
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Item
+                    name="quantity"
+                    label="库存数量"
+                  >
+                    <Input 
+                      type="number" 
+                      min="0" 
+                      placeholder="留空则不更新" 
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Form>
+          </div>
+        )}
       </Modal>
     </Card>
   );

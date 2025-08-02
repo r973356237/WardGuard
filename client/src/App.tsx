@@ -4,6 +4,8 @@ import { Layout as AntLayout, Dropdown, Avatar, Menu, Spin } from 'antd';
 import { buildApiUrl, API_ENDPOINTS } from './config/api';
 import PerformanceMonitor from './components/PerformanceMonitor';
 import { preloadCriticalRoutes } from './utils/preload';
+// 导入日期配置，确保全局日期处理统一
+import './utils/dateConfig';
 import './App.css';
 
 // 懒加载页面组件
