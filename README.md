@@ -219,7 +219,7 @@ server {
 ```bash
 # 全局安装 PM2
 npm install -g pm2
-# 创建 PM2 配置文件 ecosystem.config.js
+# 创建 PM2 配置文件 ecosystem.config.js, 并配置日志路径
 cat > ecosystem.config.js << EOF
 module.exports = {
   apps: [{
