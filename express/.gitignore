@@ -1,3 +1,11 @@
 # 忽略Node.js依赖
 node_modules/
+
+# 忽略环境变量文件（除了示例文件）
 .env
+.env.local
+.env.development
+.env.production
+.env.test
+# 但允许提交示例文件
+!.env.example
