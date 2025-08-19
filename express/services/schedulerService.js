@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const { getPool } = require('../db');
 const emailService = require('./emailService');
+const distributedLockService = require('./distributedLockService');
 
 class SchedulerService {
   constructor() {
@@ -60,10 +61,20 @@ class SchedulerService {
         return;
       }
 
-      // 创建新的定时任务
+      // 创建新的定时任务（使用分布式锁防止重复执行）
       const task = cron.schedule(cronExpression, async () => {
-        console.log('执行邮件提醒任务...');
+        console.log('尝试执行邮件提醒任务...');
+        
+        // 尝试获取分布式锁（锁定30分钟）
+        const lockAcquired = await distributedLockService.acquireLock('email_reminder_task', 30);
+        
+        if (!lockAcquired) {
+          console.log('其他实例正在执行邮件提醒任务，跳过本次执行');
+          return;
+        }
+        
         try {
+          console.log('开始执行邮件提醒任务（已获取分布式锁）...');
           const result = await emailService.checkAndSendReminder();
           console.log('邮件提醒任务执行结果:', result);
           
@@ -71,6 +82,9 @@ class SchedulerService {
           await this.updateTaskRecord('email_reminder', 'email');
         } catch (error) {
           console.error('邮件提醒任务执行失败:', error);
+        } finally {
+          // 释放分布式锁
+          await distributedLockService.releaseLock('email_reminder_task');
         }
       }, {
         scheduled: true,
@@ -167,14 +181,27 @@ class SchedulerService {
 
   // 手动执行邮件提醒任务
   async executeEmailReminderNow() {
+    console.log('尝试手动执行邮件提醒任务...');
+    
+    // 尝试获取分布式锁（锁定10分钟，手动执行时间较短）
+    const lockAcquired = await distributedLockService.acquireLock('email_reminder_manual', 10);
+    
+    if (!lockAcquired) {
+      console.log('其他实例正在执行邮件提醒任务，无法手动执行');
+      return { success: false, message: '其他实例正在执行邮件提醒任务，请稍后再试' };
+    }
+    
     try {
-      console.log('手动执行邮件提醒任务...');
+      console.log('开始手动执行邮件提醒任务（已获取分布式锁）...');
       const result = await emailService.checkAndSendReminder();
       await this.updateTaskRecord('email_reminder_manual', 'email');
       return result;
     } catch (error) {
       console.error('手动执行邮件提醒任务失败:', error);
       return { success: false, message: error.message };
+    } finally {
+      // 释放分布式锁
+      await distributedLockService.releaseLock('email_reminder_manual');
     }
   }
 
