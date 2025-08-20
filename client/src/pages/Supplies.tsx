@@ -294,32 +294,39 @@ const Supplies: React.FC = () => {
     },
   };
 
-  const handleSearch = (values: typeof searchParams) => {
-    setSearchParams(values);
+  // 处理搜索（支持联合筛选）
+  const handleSearch = (changedValues: any, allValues: typeof searchParams) => {
+    setSearchParams(allValues);
     setCurrentPage(1);
   };
 
-  // 处理筛选和排序
+  // 处理筛选和排序（支持联合筛选）
   useEffect(() => {
     let filtered: Supply[] = [...supplies];
     
-    // 应用筛选条件
+    // 应用联合筛选条件（所有条件同时生效）
     const { supply_name, storage_location, production_date, expiration_start, expiration_end } = searchParams;
-    if (supply_name) {
+    
+    // 物资名称筛选
+    if (supply_name && supply_name.trim()) {
       filtered = filtered.filter(supply => 
-        supply.supply_name.toLowerCase().includes(supply_name.toLowerCase())
+        supply.supply_name.toLowerCase().includes(supply_name.toLowerCase().trim())
       );
     }
-    if (storage_location) {
+    
+    // 存储位置筛选
+    if (storage_location && storage_location.trim()) {
       filtered = filtered.filter(supply => 
-        storage_location ? supply.storage_location.toLowerCase().includes(storage_location.toLowerCase()) : true
+        supply.storage_location.toLowerCase().includes(storage_location.toLowerCase().trim())
       );
     }
+    
     // 生产日期筛选
-    if (production_date) {
+    if (production_date && production_date.trim()) {
       filtered = filtered.filter(supply => supply.production_date === production_date);
     }
-    // 有效期范围筛选
+    
+    // 有效期范围筛选（支持开始和结束时间的联合筛选）
     if (expiration_start || expiration_end) {
       filtered = filtered.filter(supply => {
         // 有效期为0的物资视为永久有效，不应该出现在过期筛选中
@@ -333,8 +340,8 @@ const Supplies: React.FC = () => {
         expirationDate.setDate(productionDate.getDate() + validityDays);
         const expDateStr = expirationDate.toISOString().split('T')[0];
         
-        const startMatch = expiration_start ? expDateStr >= expiration_start : true;
-        const endMatch = expiration_end ? expDateStr <= expiration_end : true;
+        const startMatch = expiration_start && expiration_start.trim() ? expDateStr >= expiration_start : true;
+        const endMatch = expiration_end && expiration_end.trim() ? expDateStr <= expiration_end : true;
         return startMatch && endMatch;
       });
     }

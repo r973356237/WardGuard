@@ -105,9 +105,9 @@ const MedicalExaminations: React.FC = () => {
     setCurrentPage(1);
   };
 
-  // 执行普通搜索筛选
-  const handleSearch = (values: typeof searchParams) => {
-    setSearchParams(values);
+  // 执行普通搜索筛选（支持联合筛选）
+  const handleSearch = (changedValues: any, allValues: typeof searchParams) => {
+    setSearchParams(allValues);
     setCurrentPage(1);
   };
 
@@ -204,11 +204,11 @@ const MedicalExaminations: React.FC = () => {
     modalForm.resetFields();
   };
 
-  // 处理筛选和排序逻辑（核心修改）
+  // 处理筛选和排序逻辑（支持联合筛选）
   useEffect(() => {
     let filtered: MedicalExamination[] = [...examinations];
 
-    // 应用筛选条件
+    // 应用联合筛选条件（所有条件同时生效）
     const { 
       employee_name, 
       examination_date, 
@@ -217,30 +217,35 @@ const MedicalExaminations: React.FC = () => {
       need_recheck 
     } = searchParams;
 
-    if (employee_name) {
+    // 员工姓名筛选
+    if (employee_name && employee_name.trim()) {
       filtered = filtered.filter(exam => 
-        (exam.employee_name || '').toLowerCase().includes(employee_name.toLowerCase())
+        (exam.employee_name || '').toLowerCase().includes(employee_name.toLowerCase().trim())
       );
     }
 
-    if (examination_date) {
+    // 体检日期筛选
+    if (examination_date && examination_date.trim()) {
       filtered = filtered.filter(exam => 
         dayjs(exam.examination_date).format('YYYY-MM-DD') === examination_date
       );
     }
 
-    if (audiometry_result) {
+    // 电测听结果筛选
+    if (audiometry_result && audiometry_result.trim()) {
       filtered = filtered.filter(exam => 
-        (exam.audiometry_result || '').toLowerCase().includes(audiometry_result.toLowerCase())
+        (exam.audiometry_result || '').toLowerCase().includes(audiometry_result.toLowerCase().trim())
       );
     }
 
-    if (dust_examination_result) {
+    // 粉尘结果筛选
+    if (dust_examination_result && dust_examination_result.trim()) {
       filtered = filtered.filter(exam => 
-        (exam.dust_examination_result || '').toLowerCase().includes(dust_examination_result.toLowerCase())
+        (exam.dust_examination_result || '').toLowerCase().includes(dust_examination_result.toLowerCase().trim())
       );
     }
 
+    // 是否需要复查筛选
     if (need_recheck === 1) {
       filtered = filtered.filter(exam => exam.need_recheck === 1);
     }

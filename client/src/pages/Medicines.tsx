@@ -106,8 +106,9 @@ const Medicines: React.FC = () => {
     setCurrentPage(1);
   };
 
-  const handleSearch = (values: typeof searchParams) => {
-    setSearchParams(values);
+  // 处理搜索（支持联合筛选）
+  const handleSearch = (changedValues: any, allValues: typeof searchParams) => {
+    setSearchParams(allValues);
     setCurrentPage(1);
   };
 
@@ -275,26 +276,32 @@ const Medicines: React.FC = () => {
     },
    };
 
-  // 处理筛选和排序
+  // 处理筛选和排序（支持联合筛选）
   useEffect(() => {
     let filtered: Medicine[] = [...medicines];
     
-    // 应用筛选条件
+    // 应用联合筛选条件（所有条件同时生效）
     const { medicine_name, storage_location, production_date, expiration_start, expiration_end } = searchParams;
-    if (medicine_name) {
+    
+    // 药品名称筛选
+    if (medicine_name && medicine_name.trim()) {
       filtered = filtered.filter(med => 
-        med.medicine_name.toLowerCase().includes(medicine_name.toLowerCase())
+        med.medicine_name.toLowerCase().includes(medicine_name.toLowerCase().trim())
       );
     }
-    if (storage_location) {
+    
+    // 存储位置筛选
+    if (storage_location && storage_location.trim()) {
       filtered = filtered.filter(med => 
-        storage_location ? med.storage_location.toLowerCase().includes(storage_location.toLowerCase()) : true
+        med.storage_location.toLowerCase().includes(storage_location.toLowerCase().trim())
       );
     }
+    
     // 生产日期筛选
-    if (production_date) {
+    if (production_date && production_date.trim()) {
       filtered = filtered.filter(med => med.production_date === production_date);
     }
+    
     // 有效期范围筛选
     if (expiration_start || expiration_end) {
       filtered = filtered.filter(med => {

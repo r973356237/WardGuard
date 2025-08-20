@@ -199,9 +199,9 @@ const Employees: React.FC = () => {
     setCalculatedExposureTime(calculated);
   };
 
-  // 处理搜索
-  const handleSearch = (values: SearchParams) => {
-    setSearchParams(values);
+  // 处理搜索（支持联合筛选）
+  const handleSearch = (changedValues: any, allValues: SearchParams) => {
+    setSearchParams(allValues);
     setCurrentPage(1);
   };
 
@@ -334,38 +334,50 @@ const Employees: React.FC = () => {
     setIsExposureTimeLocked(false);
   };
 
-  // 筛选和排序逻辑
+  // 筛选和排序逻辑（支持联合筛选）
   useEffect(() => {
     let filtered: Employee[] = [...employees];
     
-    // 应用筛选条件
+    // 应用联合筛选条件（所有条件同时生效）
     const { name, employee_number, workshop, gender, position, status } = searchParams;
-    if (name) {
+    
+    // 姓名筛选
+    if (name && name.trim()) {
       filtered = filtered.filter(emp => 
-        emp.name.toLowerCase().includes(name.toLowerCase())
+        (emp.name || '').toLowerCase().includes(name.toLowerCase().trim())
       );
     }
-    if (employee_number) {
+    
+    // 工号筛选
+    if (employee_number && employee_number.trim()) {
       filtered = filtered.filter(emp => 
-        emp.employee_number.includes(employee_number)
+        (emp.employee_number || '').includes(employee_number.trim())
       );
     }
-    if (workshop) {
+    
+    // 车间筛选
+    if (workshop && workshop.trim()) {
       filtered = filtered.filter(emp => 
-        emp.workshop.toLowerCase().includes(workshop.toLowerCase())
+        (emp.workshop || '').toLowerCase().includes(workshop.toLowerCase().trim())
       );
     }
-    if (gender) {
+    
+    // 性别筛选
+    if (gender && gender.trim()) {
       filtered = filtered.filter(emp => 
-        emp.gender.toLowerCase().includes(gender.toLowerCase())
+        (emp.gender || '').toLowerCase().includes(gender.toLowerCase().trim())
       );
     }
-    if (position) {
+    
+    // 职位筛选
+    if (position && position.trim()) {
       filtered = filtered.filter(emp => 
-        emp.position.toLowerCase().includes(position.toLowerCase())
+        (emp.position || '').toLowerCase().includes(position.toLowerCase().trim())
       );
     }
-    if (status) {
+    
+    // 状态筛选
+    if (status && status.trim()) {
       filtered = filtered.filter(emp => 
         (emp.status || '在职') === status
       );
