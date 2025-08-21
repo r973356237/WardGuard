@@ -85,7 +85,7 @@ class EmailService {
       
       // 查询过期物资，排除有效期为0的物资
       const expiredSuppliesQuery = `
-        SELECT s.supply_name as name, DATE_ADD(s.production_date, INTERVAL s.validity_period_days DAY) as expiry_date, s.supply_number as quantity, '个' as unit, 'supplies' as type
+        SELECT s.supply_name as name, DATE_ADD(s.production_date, INTERVAL s.validity_period_days DAY) as expiry_date, s.supply_number as quantity, s.storage_location, 'supplies' as type
         FROM supplies s
         WHERE DATE_ADD(s.production_date, INTERVAL s.validity_period_days DAY) <= ? AND s.supply_number > 0 AND s.validity_period_days > 0
         ORDER BY expiry_date ASC
@@ -93,7 +93,7 @@ class EmailService {
       
       // 查询过期药品
       const expiredMedicinesQuery = `
-        SELECT m.medicine_name as name, DATE_ADD(m.production_date, INTERVAL m.validity_period_days DAY) as expiry_date, m.quantity, '盒' as unit, 'medicines' as type
+        SELECT m.medicine_name as name, DATE_ADD(m.production_date, INTERVAL m.validity_period_days DAY) as expiry_date, m.quantity, m.storage_location, 'medicines' as type
         FROM medicines m
         WHERE DATE_ADD(m.production_date, INTERVAL m.validity_period_days DAY) <= ? AND m.quantity > 0 AND m.validity_period_days > 0
         ORDER BY expiry_date ASC
@@ -134,7 +134,7 @@ class EmailService {
       expiredItemsList += `<th>物资名称</th>\n`;
       expiredItemsList += `<th style="text-align: center;">过期日期</th>\n`;
       expiredItemsList += `<th style="text-align: center;">剩余数量</th>\n`;
-      expiredItemsList += `<th style="text-align: center;">单位</th>\n`;
+      expiredItemsList += `<th style="text-align: center;">存储位置</th>\n`;
       expiredItemsList += `</tr>\n`;
       expiredItemsList += `</thead>\n`;
       expiredItemsList += `<tbody>\n`;
@@ -149,7 +149,7 @@ class EmailService {
         expiredItemsList += `<td>${item.name}</td>\n`;
         expiredItemsList += `<td style="text-align: center;">${formattedDate}</td>\n`;
         expiredItemsList += `<td style="text-align: center;">${item.quantity}</td>\n`;
-        expiredItemsList += `<td style="text-align: center;">${item.unit}</td>\n`;
+        expiredItemsList += `<td style="text-align: center;">${item.storage_location}</td>\n`;
         expiredItemsList += `</tr>\n`;
         itemIndex++;
       });
@@ -167,7 +167,7 @@ class EmailService {
       expiredItemsList += `<th>药品名称</th>\n`;
       expiredItemsList += `<th style="text-align: center;">过期日期</th>\n`;
       expiredItemsList += `<th style="text-align: center;">剩余数量</th>\n`;
-      expiredItemsList += `<th style="text-align: center;">单位</th>\n`;
+      expiredItemsList += `<th style="text-align: center;">存储位置</th>\n`;
       expiredItemsList += `</tr>\n`;
       expiredItemsList += `</thead>\n`;
       expiredItemsList += `<tbody>\n`;
@@ -182,7 +182,7 @@ class EmailService {
         expiredItemsList += `<td>${item.name}</td>\n`;
         expiredItemsList += `<td style="text-align: center;">${formattedDate}</td>\n`;
         expiredItemsList += `<td style="text-align: center;">${item.quantity}</td>\n`;
-        expiredItemsList += `<td style="text-align: center;">${item.unit}</td>\n`;
+        expiredItemsList += `<td style="text-align: center;">${item.storage_location}</td>\n`;
         expiredItemsList += `</tr>\n`;
         itemIndex++;
       });
