@@ -116,8 +116,21 @@ const Medicines: React.FC = () => {
   };
 
   // 处理搜索（支持联合筛选）
-  const handleSearch = (changedValues: any, allValues: typeof searchParams) => {
-    setSearchParams(allValues);
+  const handleSearch = (changedValues: any, allValues: any) => {
+    // 确保日期字段被正确格式化为字符串
+    const formattedValues = {
+      ...allValues,
+      expiration_start: allValues.expiration_start && dayjs.isDayjs(allValues.expiration_start) 
+        ? allValues.expiration_start.format('YYYY-MM-DD') 
+        : allValues.expiration_start,
+      expiration_end: allValues.expiration_end && dayjs.isDayjs(allValues.expiration_end) 
+        ? allValues.expiration_end.format('YYYY-MM-DD') 
+        : allValues.expiration_end,
+      production_date: allValues.production_date && dayjs.isDayjs(allValues.production_date)
+        ? allValues.production_date.format('YYYY-MM-DD')
+        : allValues.production_date
+    };
+    setSearchParams(formattedValues);
     setCurrentPage(1);
   };
 
@@ -317,13 +330,15 @@ const Medicines: React.FC = () => {
         // 有效期为0的药品视为永久有效，不应该出现在过期筛选中
         if (med.validity_period_days === 0) return false;
         if (!med.production_date || med.validity_period_days === undefined) return false;
-        const productionDate = new Date(med.production_date);
-        if (isNaN(productionDate.getTime())) return false;
+        
+        const productionDate = dayjs(med.production_date);
+        if (!productionDate.isValid()) return false;
+        
         const validityDays = Number(med.validity_period_days);
         if (isNaN(validityDays) || validityDays < 0) return false;
-        const expirationDate = new Date(productionDate);
-        expirationDate.setDate(productionDate.getDate() + validityDays);
-        const expDateStr = expirationDate.toISOString().split('T')[0];
+        
+        const expirationDate = productionDate.add(validityDays, 'day');
+        const expDateStr = expirationDate.format('YYYY-MM-DD');
         
         const startMatch = expiration_start ? expDateStr >= expiration_start : true;
         const endMatch = expiration_end ? expDateStr <= expiration_end : true;

@@ -259,7 +259,9 @@ const fetchDashboardData = async () => {
     ],
     alerts: {
       expiredMedicines: medicineExpired,
-      expiredSupplies: supplyExpired
+      expiringSoonMedicines: medicineExpiringSoon,
+      expiredSupplies: supplyExpired,
+      expiringSoonSupplies: supplyExpiringSoon
     },
     rates: {
       medicineExpireRate: Number(medicineExpireRate.toFixed(1)),
