@@ -136,7 +136,7 @@ exports.addSupply = async (req, res) => {
     const { supply_name, storage_location, production_date, validity_period_days, supply_number } = req.body;
 
     // 验证请求参数
-    if (!supply_name || !storage_location || !production_date || !validity_period_days || !supply_number) {
+    if (!supply_name || !storage_location || !production_date || validity_period_days === undefined || validity_period_days === null || supply_number === undefined || supply_number === null) {
       console.log('物资参数不完整:', req.body);
       return res.status(400).json({ success: false, message: '所有字段都是必填项' });
     }
@@ -287,7 +287,7 @@ exports.updateSupply = async (req, res) => {
     const { supply_name, storage_location, production_date, validity_period_days, supply_number } = req.body;
 
     // 验证请求参数
-    if (!supply_name || !storage_location || !production_date || !validity_period_days || !supply_number) {
+    if (!supply_name || !storage_location || !production_date || validity_period_days === undefined || validity_period_days === null || supply_number === undefined || supply_number === null) {
       console.log('物资参数不完整:', req.body);
       return res.status(400).json({ success: false, message: '所有字段都是必填项' });
     }
@@ -481,7 +481,7 @@ exports.batchImportSupplies = async (req, res) => {
             supply_number: !!supply_number
           });
           
-          if (!supply_name || !storage_location || !production_date || !validity_period_days || !supply_number) {
+          if (!supply_name || !storage_location || !production_date || validity_period_days === undefined || validity_period_days === null || supply_number === undefined || supply_number === null) {
             const errorMsg = `第${i + 1}行：物资名称、存储位置、生产日期、有效期天数、编号为必填项`;
             console.log('验证失败:', errorMsg);
             results.failed++;
@@ -640,9 +640,12 @@ exports.batchUpdateSupplies = async (req, res) => {
           }
 
           // 如果更新了生产日期或有效期，需要重新计算过期日期
-          if (updateData.production_date || updateData.validity_period_days) {
-            const productionDate = updateData.production_date || original.production_date;
-            const validityDays = updateData.validity_period_days || original.validity_period_days;
+          const isProdDateUpdated = updateData.production_date !== undefined && updateData.production_date !== null;
+          const isValidityUpdated = updateData.validity_period_days !== undefined && updateData.validity_period_days !== null;
+
+          if (isProdDateUpdated || isValidityUpdated) {
+            const productionDate = isProdDateUpdated ? updateData.production_date : original.production_date;
+            const validityDays = isValidityUpdated ? updateData.validity_period_days : original.validity_period_days;
             
             const expiration_date = new Date(productionDate);
             expiration_date.setDate(expiration_date.getDate() + parseInt(validityDays));

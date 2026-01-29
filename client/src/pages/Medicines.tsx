@@ -98,6 +98,15 @@ const Medicines: React.FC = () => {
     setCurrentPage(1);
   };
 
+  const handleExpiringSoonMedicines = () => {
+    setSearchParams(prev => ({
+      ...prev,
+      expiration_start: dayjs().format('YYYY-MM-DD'),
+      expiration_end: dayjs().add(30, 'day').format('YYYY-MM-DD')
+    }));
+    setCurrentPage(1);
+  };
+
   const handleExpiredMedicines = () => {
     setSearchParams(prev => ({
       ...prev,
@@ -632,7 +641,14 @@ const Medicines: React.FC = () => {
         onValuesChange={handleSearch}
         onClear={handleClearFilters}
         extraActions={
-          <Button type="primary" onClick={handleExpiredMedicines}>查询已过期药品</Button>
+          <Space>
+            <Button onClick={handleExpiringSoonMedicines}>
+              一个月内到期
+            </Button>
+            <Button onClick={handleExpiredMedicines} danger>
+              查询已过期药品
+            </Button>
+          </Space>
         }
       >
         <Form.Item name="medicine_name" label="药品名称">

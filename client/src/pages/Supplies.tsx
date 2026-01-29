@@ -63,7 +63,7 @@ const Supplies: React.FC = () => {
   const [batchOperationType, setBatchOperationType] = useState<'update' | 'delete'>('update');
   const [batchForm] = Form.useForm();
 
-  const handleTableChange = (pagination: any, filters: any, sorter: any) => {
+  const handleTableChange = (pagination: any, _: any, sorter: any) => {
     if (sorter.field || sorter.order) {
       setSorting({
         field: sorter.field,
@@ -103,22 +103,22 @@ const Supplies: React.FC = () => {
     setCurrentPage(1);
   };
 
+  const handleExpiringSoonSupplies = () => {
+    setSearchParams(prev => ({
+      ...prev,
+      expiration_start: dayjs().format('YYYY-MM-DD'),
+      expiration_end: dayjs().add(30, 'day').format('YYYY-MM-DD')
+    }));
+    setCurrentPage(1);
+  };
+
   const handleExpiredSupplies = () => {
-    const now = new Date();
-    const expiredSupplies = supplies.filter(supply => {
-      if (!supply.production_date || supply.validity_period_days === undefined) return false;
-      const productionDate = new Date(supply.production_date);
-      if (isNaN(productionDate.getTime())) return false;
-      const validityDays = Number(supply.validity_period_days);
-      // 有效期为0的物资视为永久有效，不应该出现在过期物资中
-      if (validityDays === 0) return false;
-      if (isNaN(validityDays) || validityDays < 0) return false;
-      const expirationDate = new Date(productionDate);
-      expirationDate.setDate(productionDate.getDate() + validityDays);
-      return expirationDate < now;
-    });
-    setSortedAndFiltered(expiredSupplies);
-    setTotal(expiredSupplies.length);
+    // 使用 searchParams 来筛选已过期物资（expiration_end 设置为昨天，或者今天？）
+    // 现有的 handleExpiredSupplies 逻辑是直接过滤数组，这里改为统一使用 searchParams
+    setSearchParams(prev => ({
+      ...prev,
+      expiration_end: dayjs().format('YYYY-MM-DD')
+    }));
     setCurrentPage(1);
   };
 
@@ -282,7 +282,7 @@ const Supplies: React.FC = () => {
       setSelectedRowKeys(newSelectedRowKeys);
       setSelectedRows(newSelectedRows);
     },
-    onSelectAll: (selected: boolean, selectedRows: Supply[], changeRows: Supply[]) => {
+    onSelectAll: (selected: boolean) => {
       if (selected) {
         const newKeys = displaySupplies.map(item => item.id);
         setSelectedRowKeys(newKeys);
@@ -295,7 +295,7 @@ const Supplies: React.FC = () => {
   };
 
   // 处理搜索（支持联合筛选）
-  const handleSearch = (changedValues: any, allValues: typeof searchParams) => {
+  const handleSearch = (_: any, allValues: typeof searchParams) => {
     setSearchParams(allValues);
     setCurrentPage(1);
   };
@@ -654,7 +654,10 @@ const Supplies: React.FC = () => {
         onValuesChange={handleSearch}
         onClear={handleClearFilters}
         extraActions={
-          <Button type="primary" onClick={handleExpiredSupplies}>查询已过期物资</Button>
+          <Space>
+            <Button onClick={handleExpiringSoonSupplies}>一个月内到期</Button>
+            <Button danger onClick={handleExpiredSupplies}>查询已过期物资</Button>
+          </Space>
         }
       >
         <Form.Item name="supply_name" label="物资名称">
@@ -668,9 +671,7 @@ const Supplies: React.FC = () => {
             format="YYYY-MM-DD" 
             onChange={date => date && setSearchParams(prev => ({...prev, production_date: date.format('YYYY-MM-DD')}))} 
             style={{ width: '100%' }}
-            changeOnBlur
             allowClear
-            showToday={false}
           />
         </Form.Item>
         <Form.Item name="expiration_start" label="过期开始时间">
@@ -678,9 +679,7 @@ const Supplies: React.FC = () => {
             format="YYYY-MM-DD" 
             onChange={date => date && setSearchParams(prev => ({...prev, expiration_start: date.format('YYYY-MM-DD')}))} 
             style={{ width: '100%' }}
-            changeOnBlur
             allowClear
-            showToday={false}
           />
         </Form.Item>
         <Form.Item name="expiration_end" label="过期结束时间">
@@ -688,9 +687,7 @@ const Supplies: React.FC = () => {
             format="YYYY-MM-DD" 
             onChange={date => date && setSearchParams(prev => ({...prev, expiration_end: date.format('YYYY-MM-DD')}))} 
             style={{ width: '100%' }}
-            changeOnBlur
             allowClear
-            showToday={false}
           />
         </Form.Item>
       </CollapsibleFilter>
@@ -790,9 +787,7 @@ const Supplies: React.FC = () => {
                   format="YYYY-MM-DD" 
                   style={{ width: '100%' }}
                   placeholder="请选择生产日期"
-                  changeOnBlur
                   allowClear
-                  showToday={false}
                 />
               </Form.Item>
             </Col>
@@ -804,8 +799,8 @@ const Supplies: React.FC = () => {
                   { required: true, message: '请输入有效期天数' },
                   { 
                     validator: (_, value) => {
-                      if (value && (isNaN(Number(value)) || Number(value) <= 0)) {
-                        return Promise.reject(new Error('有效期天数必须大于0'));
+                      if (value && (isNaN(Number(value)) || Number(value) < 0)) {
+                        return Promise.reject(new Error('有效期天数不能小于0'));
                       }
                       return Promise.resolve();
                     }
@@ -814,7 +809,7 @@ const Supplies: React.FC = () => {
               >
                 <Input 
                   type="number" 
-                  min="1" 
+                  min="0" 
                   placeholder="请输入有效期天数" 
                 />
               </Form.Item>
@@ -906,9 +901,7 @@ const Supplies: React.FC = () => {
                       style={{ width: '100%' }} 
                       placeholder="留空则不更新"
                       format="YYYY-MM-DD"
-                      changeOnBlur
                       allowClear
-                      showToday={false}
                     />
                   </Form.Item>
                 </Col>

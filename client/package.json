@@ -23,9 +23,9 @@
   },
   "proxy": "http://localhost:3000",
   "scripts": {
-    "start": "set PORT=3001 && set GENERATE_SOURCEMAP=false && react-scripts start",
-    "build": "set GENERATE_SOURCEMAP=false && react-scripts build",
-    "build:prod": "set GENERATE_SOURCEMAP=false && set NODE_ENV=production && react-scripts build",
+    "start": "PORT=3001 GENERATE_SOURCEMAP=false react-scripts start",
+    "build": "GENERATE_SOURCEMAP=false react-scripts build",
+    "build:prod": "GENERATE_SOURCEMAP=false NODE_ENV=production react-scripts build",
     "analyze": "npx webpack-bundle-analyzer build/static/js/*.js",
     "eject": "react-scripts eject"
   },

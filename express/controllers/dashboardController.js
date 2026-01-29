@@ -128,28 +128,42 @@ const fetchDashboardData = async () => {
     // 员工总数
     pool.execute('SELECT COUNT(*) as count FROM employees'),
     
-    // 药品统计（总数和过期数）
+    // 药品统计（总数、过期数、即将到期数）
     pool.execute(`
       SELECT 
         COUNT(*) as total_count,
         SUM(CASE 
           WHEN validity_period_days > 0 AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) <= CURDATE() THEN 1
           ELSE 0
-        END) as expired_count
+        END) as expired_count,
+        SUM(CASE 
+          WHEN validity_period_days > 0 
+            AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) > CURDATE() 
+            AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) <= DATE_ADD(CURDATE(), INTERVAL 1 MONTH) 
+          THEN 1
+          ELSE 0
+        END) as expiring_soon_count
       FROM medicines
     `),
     
     // 体检记录总数
     pool.execute('SELECT COUNT(*) as count FROM medical_examinations'),
     
-    // 物资统计（总数和过期数）
+    // 物资统计（总数、过期数、即将到期数）
     pool.execute(`
       SELECT 
         COUNT(*) as total_count,
         SUM(CASE 
           WHEN validity_period_days > 0 AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) <= CURDATE() THEN 1
           ELSE 0
-        END) as expired_count
+        END) as expired_count,
+        SUM(CASE 
+          WHEN validity_period_days > 0 
+            AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) > CURDATE() 
+            AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) <= DATE_ADD(CURDATE(), INTERVAL 1 MONTH) 
+          THEN 1
+          ELSE 0
+        END) as expiring_soon_count
       FROM supplies
     `),
     
@@ -179,9 +193,11 @@ const fetchDashboardData = async () => {
   const employeeTotal = employeeCount[0]?.count || 0;
   const medicineTotal = medicineStats[0]?.total_count || 0;
   const medicineExpired = medicineStats[0]?.expired_count || 0;
+  const medicineExpiringSoon = medicineStats[0]?.expiring_soon_count || 0;
   const examinationTotal = examinationCount[0]?.count || 0;
   const supplyTotal = supplyStats[0]?.total_count || 0;
   const supplyExpired = supplyStats[0]?.expired_count || 0;
+  const supplyExpiringSoon = supplyStats[0]?.expiring_soon_count || 0;
   
   // 处理邮件服务状态信息
   const emailConfigRows = emailConfigResult[0] || [];
@@ -310,9 +326,9 @@ exports.getDashboardStats = async (req, res) => {
       console.log('仪表盘统计数据获取成功:', {
         用户: dashboardData.modules[0].value,
         员工: dashboardData.modules[1].value,
-        药品: `${dashboardData.modules[2].value}(${dashboardData.alerts.expiredMedicines}过期)`,
+        药品: `${dashboardData.modules[2].value}(${dashboardData.alerts.expiredMedicines}过期, ${dashboardData.alerts.expiringSoonMedicines}即将过期)`,
         体检记录: dashboardData.modules[3].value,
-        物资: `${dashboardData.modules[4].value}(${dashboardData.alerts.expiredSupplies}过期)`,
+        物资: `${dashboardData.modules[4].value}(${dashboardData.alerts.expiredSupplies}过期, ${dashboardData.alerts.expiringSoonSupplies}即将过期)`,
         邮件服务: dashboardData.emailService.configured ? '已配置' : '未配置'
       });
 

@@ -50,7 +50,9 @@ interface ModuleData {
 
 interface AlertData {
   expiredMedicines: number;
+  expiringSoonMedicines: number; // 一个月内即将过期
   expiredSupplies: number; // 物资过期数量
+  expiringSoonSupplies: number; // 物资一个月内即将过期
 }
 
 interface RateData {
@@ -88,7 +90,7 @@ const Dashboard: React.FC = () => {
   // 初始化状态时提供默认值
   const [dashboardData, setDashboardData] = useState<DashboardData>({
     modules: [],
-    alerts: { expiredMedicines: 0, expiredSupplies: 0 },
+    alerts: { expiredMedicines: 0, expiringSoonMedicines: 0, expiredSupplies: 0, expiringSoonSupplies: 0 },
     rates: { medicineExpireRate: 0, supplyExpireRate: 0 },
     emailService: {
       configured: false,
@@ -244,7 +246,20 @@ const Dashboard: React.FC = () => {
                       ) : (
                         <> 
                           <CheckCircleOutlined style={{ marginRight: '8px' }} />
-                          <span>所有药品均在有效期内</span>
+                          <span>暂无已过期的药品</span>
+                        </>
+                      )}
+                    </div>
+                    <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', color: dashboardData.alerts.expiringSoonMedicines > 0 ? '#faad14' : '#52c41a' }}>
+                      {dashboardData.alerts.expiringSoonMedicines > 0 ? (
+                        <> 
+                          <WarningOutlined style={{ marginRight: '8px' }} />
+                          <span>共有 {dashboardData.alerts.expiringSoonMedicines} 种药品将在一个月内过期，请关注</span>
+                        </>
+                      ) : (
+                        <> 
+                          <CheckCircleOutlined style={{ marginRight: '8px' }} />
+                          <span>暂无一个月内即将过期的药品</span>
                         </>
                       )}
                     </div>
@@ -282,7 +297,20 @@ const Dashboard: React.FC = () => {
                       ) : (
                         <> 
                           <CheckCircleOutlined style={{ marginRight: '8px' }} />
-                          <span>所有物资均在有效期内</span>
+                          <span>暂无已过期的物资</span>
+                        </>
+                      )}
+                    </div>
+                    <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', color: dashboardData.alerts.expiringSoonSupplies > 0 ? '#faad14' : '#52c41a' }}>
+                      {dashboardData.alerts.expiringSoonSupplies > 0 ? (
+                        <> 
+                          <WarningOutlined style={{ marginRight: '8px' }} />
+                          <span>共有 {dashboardData.alerts.expiringSoonSupplies} 种物资将在一个月内过期，请关注</span>
+                        </>
+                      ) : (
+                        <> 
+                          <CheckCircleOutlined style={{ marginRight: '8px' }} />
+                          <span>暂无一个月内即将过期的物资</span>
                         </>
                       )}
                     </div>
