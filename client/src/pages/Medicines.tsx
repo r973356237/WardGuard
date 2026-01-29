@@ -101,7 +101,7 @@ const Medicines: React.FC = () => {
   const handleExpiringSoonMedicines = () => {
     setSearchParams(prev => ({
       ...prev,
-      expiration_start: dayjs().format('YYYY-MM-DD'),
+      expiration_start: dayjs().add(1, 'day').format('YYYY-MM-DD'),
       expiration_end: dayjs().add(30, 'day').format('YYYY-MM-DD')
     }));
     setCurrentPage(1);

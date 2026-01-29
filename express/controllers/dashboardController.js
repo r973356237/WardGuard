@@ -133,13 +133,13 @@ const fetchDashboardData = async () => {
       SELECT 
         COUNT(*) as total_count,
         SUM(CASE 
-          WHEN validity_period_days > 0 AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) <= CURDATE() THEN 1
+          WHEN validity_period_days > 0 AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) < CURDATE() THEN 1
           ELSE 0
         END) as expired_count,
         SUM(CASE 
           WHEN validity_period_days > 0 
-            AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) > CURDATE() 
-            AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) <= DATE_ADD(CURDATE(), INTERVAL 1 MONTH) 
+            AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) >= CURDATE() 
+            AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) 
           THEN 1
           ELSE 0
         END) as expiring_soon_count
@@ -154,13 +154,13 @@ const fetchDashboardData = async () => {
       SELECT 
         COUNT(*) as total_count,
         SUM(CASE 
-          WHEN validity_period_days > 0 AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) <= CURDATE() THEN 1
+          WHEN validity_period_days > 0 AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) < CURDATE() THEN 1
           ELSE 0
         END) as expired_count,
         SUM(CASE 
           WHEN validity_period_days > 0 
-            AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) > CURDATE() 
-            AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) <= DATE_ADD(CURDATE(), INTERVAL 1 MONTH) 
+            AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) >= CURDATE() 
+            AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) 
           THEN 1
           ELSE 0
         END) as expiring_soon_count
