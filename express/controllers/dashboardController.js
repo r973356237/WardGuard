@@ -138,7 +138,7 @@ const fetchDashboardData = async () => {
         END) as expired_count,
         SUM(CASE 
           WHEN validity_period_days > 0 
-            AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) >= CURDATE() 
+            AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) > CURDATE() 
             AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) 
           THEN 1
           ELSE 0
@@ -159,7 +159,7 @@ const fetchDashboardData = async () => {
         END) as expired_count,
         SUM(CASE 
           WHEN validity_period_days > 0 
-            AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) >= CURDATE() 
+            AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) > CURDATE() 
             AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) 
           THEN 1
           ELSE 0

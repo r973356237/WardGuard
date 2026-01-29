@@ -670,7 +670,7 @@ const Supplies: React.FC = () => {
         onClear={handleClearFilters}
         extraActions={
           <Space>
-            <Button onClick={handleExpiringSoonSupplies}>一个月内到期</Button>
+            <Button onClick={handleExpiringSoonSupplies}>30天内到期</Button>
             <Button danger onClick={handleExpiredSupplies}>查询已过期物资</Button>
           </Space>
         }

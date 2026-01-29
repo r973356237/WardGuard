@@ -658,7 +658,7 @@ const Medicines: React.FC = () => {
         extraActions={
           <Space>
             <Button onClick={handleExpiringSoonMedicines}>
-              一个月内到期
+              30天内到期
             </Button>
             <Button onClick={handleExpiredMedicines} danger>
               查询已过期药品

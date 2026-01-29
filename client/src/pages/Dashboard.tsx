@@ -254,12 +254,12 @@ const Dashboard: React.FC = () => {
                       {dashboardData.alerts.expiringSoonMedicines > 0 ? (
                         <> 
                           <WarningOutlined style={{ marginRight: '8px' }} />
-                          <span>共有 {dashboardData.alerts.expiringSoonMedicines} 种药品将在一个月内过期，请关注</span>
+                          <span>共有 {dashboardData.alerts.expiringSoonMedicines} 种药品将在30天内过期，请关注</span>
                         </>
                       ) : (
                         <> 
                           <CheckCircleOutlined style={{ marginRight: '8px' }} />
-                          <span>暂无一个月内即将过期的药品</span>
+                          <span>暂无30天内即将过期的药品</span>
                         </>
                       )}
                     </div>
@@ -305,12 +305,12 @@ const Dashboard: React.FC = () => {
                       {dashboardData.alerts.expiringSoonSupplies > 0 ? (
                         <> 
                           <WarningOutlined style={{ marginRight: '8px' }} />
-                          <span>共有 {dashboardData.alerts.expiringSoonSupplies} 种物资将在一个月内过期，请关注</span>
+                          <span>共有 {dashboardData.alerts.expiringSoonSupplies} 种物资将在30天内过期，请关注</span>
                         </>
                       ) : (
                         <> 
                           <CheckCircleOutlined style={{ marginRight: '8px' }} />
-                          <span>暂无一个月内即将过期的物资</span>
+                          <span>暂无30天内即将过期的物资</span>
                         </>
                       )}
                     </div>
