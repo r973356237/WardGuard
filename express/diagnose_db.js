@@ -80,7 +80,7 @@ async function diagnose() {
         DATE_ADD(production_date, INTERVAL validity_period_days DAY) as exp_date,
         DATEDIFF(DATE_ADD(production_date, INTERVAL validity_period_days DAY), CURDATE()) as days_left,
         CASE 
-          WHEN validity_period_days > 0 AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) < CURDATE() THEN 'EXPIRED'
+          WHEN validity_period_days > 0 AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) <= CURDATE() THEN 'EXPIRED'
           WHEN validity_period_days > 0 
             AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) > CURDATE() 
             AND DATE_ADD(production_date, INTERVAL validity_period_days DAY) <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) 
