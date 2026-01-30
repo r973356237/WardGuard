@@ -538,92 +538,32 @@ const sendTestEmail = async (req, res) => {
     
     console.log('邮件服务初始化成功');
 
-    // 查询真实的过期药品
-    console.log('查询过期药品...');
-    const [expiredMedicines] = await pool.query(`
-      SELECT medicine_name, storage_location, quantity,
-             DATE_ADD(production_date, INTERVAL validity_period_days DAY) as expiration_date
-      FROM medicines 
-      WHERE DATE_ADD(production_date, INTERVAL validity_period_days DAY) <= CURDATE()
-        AND quantity > 0
-        AND validity_period_days > 0
-      ORDER BY expiration_date
-    `);
+    // 使用 emailService 获取过期和即将过期物品信息
+    console.log('查询过期和即将过期物品...');
+    const expiredItems = await emailService.getExpiredItems();
+    console.log('过期物品统计:', {
+      total: expiredItems.total,
+      expiringSoonSupplies: expiredItems.expiringSoonSuppliesCount,
+      expiringSoonMedicines: expiredItems.expiringSoonMedicinesCount
+    });
 
-    // 查询真实的过期物资
-    console.log('查询过期物资...');
-    const [expiredSupplies] = await pool.query(`
-      SELECT supply_name, storage_location, supply_number,
-             DATE_ADD(production_date, INTERVAL validity_period_days DAY) as expiration_date
-      FROM supplies 
-      WHERE DATE_ADD(production_date, INTERVAL validity_period_days DAY) <= CURDATE()
-        AND supply_number > 0
-        AND validity_period_days > 0
-      ORDER BY expiration_date
-    `);
-
-    console.log('过期药品数量:', expiredMedicines.length);
-    console.log('过期物资数量:', expiredSupplies.length);
-
-    // 构建过期物品列表
-    let expiredItemsList = '';
+    // 生成邮件内容
+    let emailContent = emailService.generateEmailContent(expiredItems, emailConfig.email_template);
+    let subject = `【测试邮件】${emailConfig.email_subject || '物资/药品过期通知'}`;
     
-    if (expiredMedicines.length === 0 && expiredSupplies.length === 0) {
-      expiredItemsList = '目前没有过期的药品或物资。';
-    } else {
-      if (expiredMedicines.length > 0) {
-        expiredItemsList += `共有${expiredMedicines.length}个药品已经过期。\n\n`;
-        expiredItemsList += '已经过期的药品：\n';
-        expiredMedicines.forEach((item, index) => {
-          // 格式化日期为YYYY-MM-DD
-          const expirationDate = new Date(item.expiration_date);
-          const formattedDate = `${expirationDate.getFullYear()}-${(expirationDate.getMonth() + 1).toString().padStart(2, '0')}-${expirationDate.getDate().toString().padStart(2, '0')}`;
-          
-          expiredItemsList += `${index + 1}.${item.medicine_name}，位置：${item.storage_location}，数量：${item.quantity}，到期日期：${formattedDate}\n`;
-        });
-        expiredItemsList += '\n';
-      }
-
-      if (expiredSupplies.length > 0) {
-        expiredItemsList += `共有${expiredSupplies.length}个物资已经过期。\n\n`;
-        expiredItemsList += '已经过期的物资：\n';
-        expiredSupplies.forEach((item, index) => {
-          // 格式化日期为YYYY-MM-DD
-          const expirationDate = new Date(item.expiration_date);
-          const formattedDate = `${expirationDate.getFullYear()}-${(expirationDate.getMonth() + 1).toString().padStart(2, '0')}-${expirationDate.getDate().toString().padStart(2, '0')}`;
-          
-          expiredItemsList += `${index + 1}.${item.supply_name}，位置：${item.storage_location}，编号：${item.supply_number}，到期日期：${formattedDate}\n`;
-        });
-      }
+    if (!emailContent) {
+      // 即使没有过期物品，测试邮件也应该发送，但提示没有过期物品
+      console.log('没有过期或即将过期的物品，生成空内容提示');
+      const today = new Date();
+      const formattedToday = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
+      emailContent = `<p>尊敬的管理员：</p>
+<p>这是系统测试邮件。</p>
+<p>目前系统中没有已过期或即将过期（30天内）的物资/药品，因此无需处理。</p>
+<p>系统管理员<br>${formattedToday}</p>`;
     }
-
-    // 使用邮件模板并替换变量
-    const emailTemplate = emailConfig.email_template || `尊敬的管理员：
-
-您好！系统检测到以下物资或药品即将过期或已过期，请及时处理：
-
-{EXPIRED_ITEMS}
-
-请登录系统查看详细信息并及时处理过期物资和药品，确保库存管理的准确性。
-
-此邮件由系统自动发送，请勿回复。
-
-系统管理员
-{CURRENT_DATE}`;
-
-    // 格式化当前日期为YYYY-MM-DD
-    const today = new Date();
-    const formattedToday = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
-
-    const emailContent = emailTemplate
-      .replace('{EXPIRED_ITEMS}', expiredItemsList)
-      .replace('{CURRENT_DATE}', formattedToday);
 
     // 发送测试邮件
     console.log('准备发送测试邮件...');
-    const subject = `【测试邮件】${emailConfig.email_subject || '物资/药品过期通知'}`;
-    const htmlContent = emailContent.replace(/\n/g, '<br>');
-    
     console.log('邮件选项:', {
       to: recipients,
       subject: subject,
@@ -631,7 +571,7 @@ const sendTestEmail = async (req, res) => {
     });
 
     // 使用emailService发送邮件（会自动记录日志）
-    const sendResult = await emailService.sendEmail(recipients, subject, htmlContent, true);
+    const sendResult = await emailService.sendEmail(recipients, subject, emailContent, true);
     
     if (!sendResult.success) {
       throw new Error(sendResult.error);
@@ -644,7 +584,7 @@ const sendTestEmail = async (req, res) => {
       success: true, 
       message: `测试邮件发送成功，已发送至：${recipients}`,
       recipients: recipients,
-      expiredItemsCount: expiredMedicines.length + expiredSupplies.length
+      expiredItemsCount: expiredItems.total
     });
   } catch (error) {
     console.error('=== 发送测试邮件失败 ===');

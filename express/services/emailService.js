@@ -102,23 +102,49 @@ class EmailService {
       const [expiredSupplies] = await pool.query(expiredSuppliesQuery, [today]);
       const [expiredMedicines] = await pool.query(expiredMedicinesQuery, [today]);
 
+      // 查询即将到期物资数量 (从明天开始30天内)
+      const expiringSoonSuppliesQuery = `
+        SELECT COUNT(*) as count
+        FROM supplies s
+        WHERE s.supply_number > 0 
+          AND s.validity_period_days > 0
+          AND DATE_ADD(s.production_date, INTERVAL s.validity_period_days DAY) > ? 
+          AND DATE_ADD(s.production_date, INTERVAL s.validity_period_days DAY) <= DATE_ADD(?, INTERVAL 30 DAY)
+      `;
+
+      // 查询即将到期药品数量 (从明天开始30天内)
+      const expiringSoonMedicinesQuery = `
+        SELECT COUNT(*) as count
+        FROM medicines m
+        WHERE m.quantity > 0 
+          AND m.validity_period_days > 0
+          AND DATE_ADD(m.production_date, INTERVAL m.validity_period_days DAY) > ? 
+          AND DATE_ADD(m.production_date, INTERVAL m.validity_period_days DAY) <= DATE_ADD(?, INTERVAL 30 DAY)
+      `;
+
+      const [expiringSoonSuppliesResult] = await pool.query(expiringSoonSuppliesQuery, [today, today]);
+      const [expiringSoonMedicinesResult] = await pool.query(expiringSoonMedicinesQuery, [today, today]);
+
       return {
         supplies: expiredSupplies || [],
         medicines: expiredMedicines || [],
+        expiringSoonSuppliesCount: expiringSoonSuppliesResult[0]?.count || 0,
+        expiringSoonMedicinesCount: expiringSoonMedicinesResult[0]?.count || 0,
         total: (expiredSupplies?.length || 0) + (expiredMedicines?.length || 0)
       };
     } catch (error) {
       console.error('获取过期物资信息失败:', error);
-      return { supplies: [], medicines: [], total: 0 };
+      return { supplies: [], medicines: [], expiringSoonSuppliesCount: 0, expiringSoonMedicinesCount: 0, total: 0 };
     }
   }
 
   // 生成邮件内容
   generateEmailContent(expiredItems, template) {
-    const { supplies, medicines, total } = expiredItems;
+    const { supplies, medicines, total, expiringSoonSuppliesCount, expiringSoonMedicinesCount } = expiredItems;
     
-    if (total === 0) {
-      return null; // 没有过期物资，不发送邮件
+    // 如果没有过期物资且没有即将到期的物资，不发送邮件
+    if (total === 0 && expiringSoonSuppliesCount === 0 && expiringSoonMedicinesCount === 0) {
+      return null;
     }
 
     // 构建过期物品列表（表格形式）
@@ -191,6 +217,22 @@ class EmailService {
       expiredItemsList += `</table>\n`;
     }
 
+    // 添加即将到期物品提醒
+    if (expiringSoonMedicinesCount > 0 || expiringSoonSuppliesCount > 0) {
+      expiredItemsList += `<div style="margin-top: 20px;">\n`;
+      expiredItemsList += `<h3 style="margin-top: 0;">即将到期预警</h3>\n`;
+      
+      if (expiringSoonMedicinesCount > 0) {
+        expiredItemsList += `<p>共有 <strong>${expiringSoonMedicinesCount}</strong> 种药品将在30天内过期，请登录系统查看详细。</p>\n`;
+      }
+      
+      if (expiringSoonSuppliesCount > 0) {
+        expiredItemsList += `<p>共有 <strong>${expiringSoonSuppliesCount}</strong> 种物资将在30天内过期，请登录系统查看详细。</p>\n`;
+      }
+      
+      expiredItemsList += `</div>\n`;
+    }
+
     // 格式化当前日期为YYYY-MM-DD
     const today = new Date();
     const formattedToday = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
@@ -254,9 +296,9 @@ class EmailService {
       // 获取过期物资信息
       const expiredItems = await this.getExpiredItems();
       
-      if (expiredItems.total === 0) {
-        console.log('没有过期物资，无需发送提醒邮件');
-        return { success: true, message: '没有过期物资' };
+      if (expiredItems.total === 0 && expiredItems.expiringSoonSuppliesCount === 0 && expiredItems.expiringSoonMedicinesCount === 0) {
+        console.log('没有过期或即将过期的物资，无需发送提醒邮件');
+        return { success: true, message: '没有过期或即将过期的物资' };
       }
 
       // 生成邮件内容
