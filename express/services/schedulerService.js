@@ -34,15 +34,15 @@ class SchedulerService {
         return;
       }
 
-      // 获取邮件配置（只需要提醒频率和时间）
-      const [configRows] = await pool.query('SELECT reminder_frequency, reminder_time FROM email_config LIMIT 1');
+      // 获取邮件配置（需要所有配置字段）
+      const [configRows] = await pool.query('SELECT reminder_frequency, reminder_time, weekly_day, monthly_day FROM email_config LIMIT 1');
       if (!configRows || configRows.length === 0) {
         console.log('未配置邮件设置，跳过邮件提醒任务');
         return;
       }
 
       const config = configRows[0];
-      const { reminder_frequency, reminder_time } = config;
+      const { reminder_frequency, reminder_time, weekly_day, monthly_day } = config;
 
       // 验证配置数据
       if (!reminder_frequency || !reminder_time) {
@@ -54,7 +54,7 @@ class SchedulerService {
       this.stopTask('email_reminder');
 
       // 根据提醒频率生成cron表达式
-      const cronExpression = this.generateCronExpression(reminder_frequency, reminder_time);
+      const cronExpression = this.generateCronExpression(reminder_frequency, reminder_time, weekly_day, monthly_day);
       
       if (!cronExpression) {
         console.log('无效的提醒频率配置');
@@ -75,6 +75,26 @@ class SchedulerService {
         
         try {
           console.log('开始执行邮件提醒任务（已获取分布式锁）...');
+
+          // === 新增：运行时配置检查 ===
+          // 在多实例环境中，可能存在当前实例的定时任务未更新的情况
+          // 再次从数据库获取最新配置，确保当前时间确实应该执行
+          const pool = await getPool();
+          const [latestConfigRows] = await pool.query('SELECT reminder_frequency, reminder_time, weekly_day, monthly_day FROM email_config LIMIT 1');
+          
+          if (latestConfigRows && latestConfigRows.length > 0) {
+            const latestConfig = latestConfigRows[0];
+            const shouldRun = this.checkIfShouldRun(latestConfig);
+            
+            if (!shouldRun) {
+              console.log('检测到配置已变更，当前时间不符合最新配置，跳过执行并更新本地调度任务');
+              // 触发自我更新，修复当前实例的过时配置
+              this.setupEmailReminderTask();
+              return;
+            }
+          }
+          // === 检查结束 ===
+
           const result = await emailService.checkAndSendReminder();
           console.log('邮件提醒任务执行结果:', result);
           
@@ -100,7 +120,7 @@ class SchedulerService {
   }
 
   // 生成cron表达式
-  generateCronExpression(frequency, time) {
+  generateCronExpression(frequency, time, weeklyDay, monthlyDay) {
     if (!time) {
       return null;
     }
@@ -124,16 +144,72 @@ class SchedulerService {
         return `${minute} ${hour} * * *`;
       
       case 'weekly':
-        // 每周一指定时间执行
-        return `${minute} ${hour} * * 1`;
+        // 每周指定时间执行
+        // 如果未配置具体的周几，默认周一 (1)
+        const dayOfWeek = (weeklyDay !== undefined && weeklyDay !== null) ? weeklyDay : 1;
+        return `${minute} ${hour} * * ${dayOfWeek}`;
       
       case 'monthly':
-        // 每月1号指定时间执行
-        return `${minute} ${hour} 1 * *`;
+        // 每月指定日期执行
+        // 如果未配置具体的日期，默认1号
+        const dayOfMonth = (monthlyDay !== undefined && monthlyDay !== null) ? monthlyDay : 1;
+        return `${minute} ${hour} ${dayOfMonth} * *`;
       
       default:
         return null;
     }
+  }
+
+  // 检查当前时间是否应该运行任务（用于运行时配置检查）
+  checkIfShouldRun(config) {
+    const { reminder_frequency, reminder_time, weekly_day, monthly_day } = config;
+    
+    // 获取当前上海时间
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const shanghaiTime = new Date(utc + (3600000 * 8));
+    
+    const currentHour = shanghaiTime.getHours();
+    const currentMinute = shanghaiTime.getMinutes();
+    const currentDay = shanghaiTime.getDay(); // 0-6 (Sun-Sat)
+    const currentDate = shanghaiTime.getDate(); // 1-31
+
+    // 解析配置时间
+    const [configHour, configMinute] = reminder_time.split(':').map(Number);
+    
+    // 检查时间 (允许 2 分钟内的误差，防止执行延迟导致判定失效)
+    // 注意：如果 cron 是准点触发，这里误差应该很小。
+    const timeDiff = Math.abs((currentHour * 60 + currentMinute) - (configHour * 60 + configMinute));
+    if (timeDiff > 2) {
+      console.log(`时间不匹配: 当前 ${currentHour}:${currentMinute}, 配置 ${configHour}:${configMinute}`);
+      return false;
+    }
+
+    if (reminder_frequency === 'daily') {
+      return true;
+    }
+    
+    if (reminder_frequency === 'weekly') {
+      const targetDay = (weekly_day !== undefined && weekly_day !== null) ? parseInt(weekly_day) : 1;
+      // 检查星期几是否匹配
+      if (currentDay !== targetDay) {
+        console.log(`星期不匹配: 当前周${currentDay}, 配置周${targetDay}`);
+        return false;
+      }
+      return true;
+    }
+
+    if (reminder_frequency === 'monthly') {
+      const targetDate = (monthly_day !== undefined && monthly_day !== null) ? parseInt(monthly_day) : 1;
+      // 检查日期是否匹配
+      if (currentDate !== targetDate) {
+        console.log(`日期不匹配: 当前${currentDate}号, 配置${targetDate}号`);
+        return false;
+      }
+      return true;
+    }
+
+    return false;
   }
 
   // 停止指定任务
