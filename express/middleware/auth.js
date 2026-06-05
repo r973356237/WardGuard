@@ -10,26 +10,23 @@ const JWT_SECRET = config.getJWTSecret();
  * JWT认证中间件
  */
 const authenticate = async (req, res, next) => {
-  console.log('执行JWT认证中间件');
+  // 认证中间件 - 仅在错误时输出日志
   try {
     // 获取Authorization头
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log('未提供有效的Authorization头');
       return res.status(401).json({ success: false, message: '未授权访问，请先登录' });
     }
 
     // 提取并验证token
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET);
-    console.log('JWT验证成功，用户ID:', decoded.userId);
 
     // 验证用户是否存在
     const pool = await db.getPool();
-    const [users] = await pool.execute('SELECT id, username, role FROM users WHERE id = ?', [decoded.userId]);
+    const [users] = await pool.execute('SELECT id, username, role FROM users WHERE id = ? AND status = \'active\'', [decoded.userId]);
     if (users.length === 0) {
-      console.log('用户不存在，ID:', decoded.userId);
-      return res.status(401).json({ success: false, message: '用户不存在或已被删除' });
+      return res.status(401).json({ success: false, message: '用户不存在或已被禁用' });
     }
 
     // 将用户信息添加到请求对象
@@ -48,9 +45,9 @@ const authenticate = async (req, res, next) => {
  * 管理员权限验证中间件
  */
 const requireAdmin = (req, res, next) => {
-  console.log('执行管理员权限验证中间件，用户角色:', req.user.role);
+  // 管理员权限验证
   if (req.user.role !== 'admin') {
-    console.log('权限不足，需要管理员权限');
+    console.error('权限不足，用户ID:', req.user.id);
     return res.status(403).json({ success: false, message: '权限不足，需要管理员权限' });
   }
   next();

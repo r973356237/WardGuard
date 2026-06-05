@@ -19,9 +19,11 @@ export const CURRENT_ENV = process.env.NODE_ENV || ENV.development;
 
 /**
  * API配置
+ * 注意：实际的 axios 实例使用的是 config/api.ts 中的 API_CONFIG.BASE_URL，
+ * 此处配置仅作为备用参考，端口已与 api.ts 统一为 3000。
  */
 export const API_CONFIG = {
-  baseURL: process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001',
+  baseURL: process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000',
   timeout: 10000,
   retryAttempts: 3,
   retryDelay: 1000
@@ -102,8 +104,8 @@ export const ROUTES = {
  * 本地存储键名
  */
 export const STORAGE_KEYS = {
-  token: 'wardguard_token',
-  user: 'wardguard_user',
+  token: 'token',
+  user: 'user',
   theme: 'wardguard_theme',
   language: 'wardguard_language'
 };

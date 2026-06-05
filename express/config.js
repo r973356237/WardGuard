@@ -43,14 +43,21 @@ class ConfigManager {
     process.env.PORT = process.env.PORT || '3000';
     process.env.NODE_ENV = process.env.NODE_ENV || 'development';
     
-    // JWT配置
-    process.env.JWT_SECRET = process.env.JWT_SECRET || 'default_jwt_secret';
+    // JWT配置 - 生产环境必须显式设置安全的 JWT_SECRET
+    if (this.isProduction()) {
+      if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'default_jwt_secret') {
+        console.error('❌ 生产环境必须设置安全的 JWT_SECRET 环境变量，禁止使用默认值');
+        process.exit(1);
+      }
+    } else {
+      process.env.JWT_SECRET = process.env.JWT_SECRET || 'default_jwt_secret';
+    }
     
     // 日志级别
     process.env.LOG_LEVEL = process.env.LOG_LEVEL || (this.isProduction() ? 'error' : 'debug');
     
-    // CORS配置
-    process.env.CORS_ORIGIN = process.env.CORS_ORIGIN || (this.isProduction() ? 'https://yourdomain.com' : '*');
+    // CORS配置 - 开发环境默认使用前端实际端口
+    process.env.CORS_ORIGIN = process.env.CORS_ORIGIN || (this.isProduction() ? 'https://yourdomain.com' : 'http://localhost:3001');
   }
 
   /**
@@ -91,10 +98,11 @@ class ConfigManager {
   getCorsConfig() {
     const origin = process.env.CORS_ORIGIN;
     
+    // 当 origin 为 '*' 时，不能同时设置 credentials: true（浏览器规范限制）
     if (origin === '*') {
       return {
         origin: true,
-        credentials: true
+        credentials: false
       };
     }
     

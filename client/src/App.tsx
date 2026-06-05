@@ -1,7 +1,8 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
 import { Layout as AntLayout, Dropdown, Avatar, Menu, Spin } from 'antd';
-import { buildApiUrl, API_ENDPOINTS } from './config/api';
+import { API_ENDPOINTS } from './config/api';
+import apiClient from './config/axios';
 import PerformanceMonitor from './components/PerformanceMonitor';
 import { preloadCriticalRoutes } from './utils/preload';
 // 导入日期配置，确保全局日期处理统一
@@ -78,17 +79,9 @@ const MainLayout: React.FC = () => {
           return;
         }
 
-        const response = await fetch(buildApiUrl(API_ENDPOINTS.USER_ME), {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const response = await apiClient.get(API_ENDPOINTS.USER_ME);
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
+        const data = response.data;
         if (data.success && data.data) {
           setUser(data.data);
           // 用户信息加载完成后，预加载关键路由

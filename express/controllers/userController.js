@@ -13,11 +13,11 @@ const JWT_SECRET = config.getJWTSecret();
 exports.register = async (req, res) => {
   console.log('收到用户注册请求:', req.body);
   try {
-    const { username, name, password, email, role } = req.body;
+    const { username, name, password, email } = req.body;
 
     // 验证请求参数
     if (!username || !name || !password || !email) {
-      console.log('注册参数不完整:', { username, name, password, email });
+      console.log('注册参数不完整:', { username, name, email });
       return res.status(400).json({ success: false, message: '用户名、姓名、密码和邮箱为必填项' });
     }
 
@@ -37,7 +37,7 @@ exports.register = async (req, res) => {
     // 插入新用户
       const [result] = await pool.execute(
         'INSERT INTO users (username, name, password, email, role) VALUES (?, ?, ?, ?, ?)',
-        [username, name, hashedPassword, email, role || 'user'] // 默认角色改为user
+        [username, name, hashedPassword, email, 'user'] // 强制设为普通用户，忽略客户端传入的 role
       );
       
     // 添加操作记录
@@ -45,7 +45,7 @@ exports.register = async (req, res) => {
       username,
       name,
       email,
-      role: role || 'user'
+      role: 'user'
     };
     await addOperationRecord(
       result.insertId, // 用户自己的ID作为操作者
@@ -60,14 +60,14 @@ exports.register = async (req, res) => {
     res.status(201).json({
       success: true,
       message: '注册成功',
-      data: { userId: result.insertId, username, name, email, role: role || 'user' }
+      data: { userId: result.insertId, username, name, email, role: 'user' }
     });
   } catch (err) {
     console.error('注册错误 - SQL状态:', err.sqlState);
       console.error('注册错误 - 代码:', err.code);
       console.error('注册错误 - 消息:', err.sqlMessage);
       console.error('注册错误 - 完整错误:', err);
-    res.status(500).json({ success: false, message: '服务器注册错误', error: err.message });
+    res.status(500).json({ success: false, message: '服务器注册错误', error: '服务器内部错误，请稍后重试' });
   }
 };
 
@@ -85,7 +85,7 @@ exports.getAllUsers = async (req, res) => {
     });
   } catch (err) {
     console.error('获取所有用户错误:', err);
-    res.status(500).json({ success: false, message: '服务器错误', error: err.message });
+    res.status(500).json({ success: false, message: '服务器错误', error: '服务器内部错误，请稍后重试' });
   }
 };
 
@@ -156,7 +156,7 @@ exports.login = async (req, res) => {
     });
   } catch (err) {
     console.error('登录错误:', err);
-    res.status(500).json({ success: false, message: '服务器登录错误', error: err.message });
+    res.status(500).json({ success: false, message: '服务器登录错误', error: '服务器内部错误，请稍后重试' });
   }
 };
 
@@ -170,7 +170,7 @@ exports.createUser = async (req, res) => {
 
     // 验证请求参数
     if (!username || !name || !password || !email) {
-      console.log('创建用户参数不完整:', { username, name, password, email });
+      console.log('创建用户参数不完整:', { username, name, email });
       return res.status(400).json({ success: false, message: '用户名、姓名、密码和邮箱为必填项' });
     }
 
@@ -228,7 +228,7 @@ exports.createUser = async (req, res) => {
     console.error('创建用户错误 - 代码:', err.code);
     console.error('创建用户错误 - 消息:', err.sqlMessage);
     console.error('创建用户错误 - 完整错误:', err);
-    res.status(500).json({ success: false, message: '服务器创建用户错误', error: err.message });
+    res.status(500).json({ success: false, message: '服务器创建用户错误', error: '服务器内部错误，请稍后重试' });
   }
 };
 
@@ -323,7 +323,7 @@ exports.updateUser = async (req, res) => {
     console.error('更新用户错误 - 代码:', err.code);
     console.error('更新用户错误 - 消息:', err.sqlMessage);
     console.error('更新用户错误 - 完整错误:', err);
-    res.status(500).json({ success: false, message: '服务器更新用户错误', error: err.message });
+    res.status(500).json({ success: false, message: '服务器更新用户错误', error: '服务器内部错误，请稍后重试' });
   }
 };
 
@@ -387,38 +387,6 @@ exports.deleteUser = async (req, res) => {
     console.error('删除用户错误 - 代码:', err.code);
     console.error('删除用户错误 - 消息:', err.sqlMessage);
     console.error('删除用户错误 - 完整错误:', err);
-    res.status(500).json({ success: false, message: '服务器删除用户错误', error: err.message });
-  }
-};
-
-/**
- * 获取当前用户信息控制器
- */
-exports.getMe = async (req, res) => {
-  console.log('收到获取用户信息请求');
-  try {
-    // 从token中获取用户ID（实际项目需添加JWT验证中间件）
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) {
-      console.log('未提供token');
-      return res.status(401).json({ success: false, message: '未授权访问' });
-    }
-
-    const decoded = jwt.verify(token, JWT_SECRET);
-    const pool = await getPool();
-      const [users] = await pool.execute('SELECT id, username, name, email, role FROM users WHERE id = ?', [decoded.userId]);
-
-    if (users.length === 0) {
-      console.log('用户不存在:', decoded.userId);
-      return res.status(404).json({ success: false, message: '用户不存在' });
-    }
-
-    res.json({
-      success: true,
-      data: users[0]
-    });
-  } catch (err) {
-    console.error('获取用户信息错误:', err);
-    res.status(500).json({ success: false, message: '服务器错误', error: err.message });
+    res.status(500).json({ success: false, message: '服务器删除用户错误', error: '服务器内部错误，请稍后重试' });
   }
 };

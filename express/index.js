@@ -5,6 +5,7 @@ const config = require('./config');
 const { initializeDB, healthCheck } = require('./db');
 const schedulerService = require('./services/schedulerService');
 const appWarmup = require('./utils/appWarmup');
+const { errorHandler, notFoundHandler } = require('./middleware/error_handler');
 
 // 打印当前配置信息
 config.printConfig();
@@ -15,7 +16,7 @@ const PORT = process.env.PORT || 3000;
 
 // 中间件配置
 app.use(cors(config.getCorsConfig()));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // 健康检查端点（在数据库初始化之前就可用）
 app.get('/health', async (req, res) => {
@@ -68,8 +69,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/system', systemRoutes);
 app.use('/api', permissionRoutes); // 权限管理路由
 
-// 直接挂载系统名称路由（为了兼容前端API配置）
-app.use('/api', systemRoutes);
+// 注意：systemRoutes 已在 /api/system 挂载，不再重复挂载以避免路由冲突
 
 if (config.isDevelopment()) {
   console.log('所有API路由已挂载 (开发环境)');
@@ -114,15 +114,11 @@ if (config.isProduction()) {
   });
 }
 
-// 全局错误处理中间件
-app.use((error, req, res, next) => {
-  console.error('全局错误处理:', error);
-  res.status(500).json({
-    success: false,
-    message: '服务器内部错误',
-    error: process.env.NODE_ENV === 'development' ? error.message : '服务器错误'
-  });
-});
+// 404 处理中间件（放在所有路由之后）
+app.use(notFoundHandler);
+
+// 全局错误处理中间件（使用统一的错误处理器）
+app.use(errorHandler);
 
 // 优化的服务器启动函数，确保数据库完全初始化后再启动HTTP服务
 async function startServer() {

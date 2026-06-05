@@ -1,13 +1,31 @@
 
 const mysql = require('mysql2/promise');
+const path = require('path');
+
+// 加载环境变量配置（参考 config.js 的方式）
+const env = process.env.NODE_ENV || 'development';
+const envFile = `.env.${env}`;
+const envPath = path.resolve(__dirname, envFile);
+const fs = require('fs');
+if (fs.existsSync(envPath)) {
+  require('dotenv').config({ path: envPath });
+} else {
+  require('dotenv').config();
+}
 
 async function diagnose() {
+  // 从环境变量读取数据库连接信息，不再硬编码敏感凭据
   const config = {
-    host: '101.36.106.117',
-    user: 'root',
-    password: 'xiaokai123',
-    database: 'wardguard', // assuming database name, or I'll list databases first
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME || 'wardguard',
   };
+
+  if (!config.host || !config.user || !config.password) {
+    console.error('错误：数据库连接信息未配置，请检查 .env 文件中的 DB_HOST、DB_USER、DB_PASSWORD');
+    process.exit(1);
+  }
 
   try {
     console.log('Connecting to database...');
