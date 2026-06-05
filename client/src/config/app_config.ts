@@ -35,7 +35,7 @@ export const API_CONFIG = {
 export const APP_CONFIG = {
   name: 'WardGuard',
   version: '1.0.0',
-  description: '病房管理系统',
+  description: '综合管理系统',
   
   // 分页配置
   pagination: {

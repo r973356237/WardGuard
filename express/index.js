@@ -81,7 +81,7 @@ if (config.isDevelopment()) {
 app.get('/api', (req, res) => {
   res.json({ 
     success: true, 
-    message: '科室管理系统后端API已启动',
+    message: '综合管理系统后端API已启动',
     environment: config.isProduction() ? 'production' : 'development',
     version: '1.0.0'
   });
@@ -123,7 +123,7 @@ app.use(errorHandler);
 // 优化的服务器启动函数，确保数据库完全初始化后再启动HTTP服务
 async function startServer() {
   try {
-    console.log('🚀 正在启动科室管理系统服务器...');
+    console.log('🚀 正在启动综合管理系统服务器...');
     
     // 第一步：初始化数据库连接
     console.log('📊 步骤 1/4: 初始化数据库连接...');
@@ -143,7 +143,7 @@ async function startServer() {
     // 第四步：启动HTTP服务器
     console.log('🌐 步骤 4/5: 启动HTTP服务器...');
     const server = app.listen(PORT, async () => {
-      console.log('✅ 科室管理系统服务器启动成功!');
+      console.log('✅ 综合管理系统服务器启动成功!');
       console.log(`🔗 服务器地址: http://localhost:${PORT}`);
       console.log(`📊 健康检查: http://localhost:${PORT}/health`);
       console.log(`🎯 API端点: http://localhost:${PORT}/api`);

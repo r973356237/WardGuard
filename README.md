@@ -1,9 +1,9 @@
-# WardGuard 科室管理系统
+# WardGuard 综合管理系统
 
 <div align="center">
   <img src="client/public/logo.png" alt="WardGuard Logo" width="200"/>
   
-  <h3>现代化的科室综合管理系统</h3>
+  <h3>现代化的综合管理系统</h3>
   
   [![Node.js](https://img.shields.io/badge/Node.js-18.x-green.svg)](https://nodejs.org/)
   [![React](https://img.shields.io/badge/React-18.x-blue.svg)](https://reactjs.org/)
