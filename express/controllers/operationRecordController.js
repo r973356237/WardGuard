@@ -56,10 +56,10 @@ exports.getUserOperationRecords = async (req, res) => {
     }
     
     // 添加排序和分页
-    query += ' ORDER BY r.operation_time DESC LIMIT ? OFFSET ?';
-    const pageSize = parseInt(limit);
-    const offset = (parseInt(page) - 1) * pageSize;
-    queryParams.push(pageSize, offset);
+    const pageSize = parseInt(limit) || 50;
+    const pageNum = parseInt(page) || 1;
+    const offset = (pageNum - 1) * pageSize;
+    query += ` ORDER BY r.operation_time DESC LIMIT ${pageSize} OFFSET ${offset}`;
     
     // 执行查询
     const [records] = await pool.execute(query, queryParams);
@@ -69,7 +69,7 @@ exports.getUserOperationRecords = async (req, res) => {
     if (whereConditions.length > 0) {
       countQuery += ' WHERE ' + whereConditions.join(' AND ');
     }
-    const [countResult] = await pool.execute(countQuery, queryParams.slice(0, -2));
+    const [countResult] = await pool.execute(countQuery, queryParams);
     const total = countResult[0].total;
     
     console.log('获取用户操作记录成功，共', records.length, '条记录');
