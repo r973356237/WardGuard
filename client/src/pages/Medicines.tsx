@@ -775,12 +775,23 @@ const Medicines: React.FC = () => {
               <Form.Item
                 name="validity_period_days"
                 label="有效期(天)"
-                rules={[{ required: true, message: '请输入有效期天数' }]}
+                tooltip="如永久有效，请填写 0"
+                rules={[
+                  { required: true, message: '请输入有效期天数' },
+                  { 
+                    validator: (_, value) => {
+                      if (value && (isNaN(Number(value)) || Number(value) < 0)) {
+                        return Promise.reject(new Error('有效期天数不能小于0'));
+                      }
+                      return Promise.resolve();
+                    }
+                  }
+                ]}
               >
                 <Input 
                   type="number" 
-                  min="1" 
-                  placeholder="请输入有效期天数" 
+                  min="0" 
+                  placeholder="请输入有效期天数（永久有效请填 0）" 
                 />
               </Form.Item>
             </Col>

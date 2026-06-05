@@ -773,6 +773,7 @@ const Supplies: React.FC = () => {
               <Form.Item
                 name="validity_period_days"
                 label="有效期(天)"
+                tooltip="如永久有效，请填写 0"
                 rules={[
                   { required: true, message: '请输入有效期天数' },
                   { 
@@ -788,7 +789,7 @@ const Supplies: React.FC = () => {
                 <Input 
                   type="number" 
                   min="0" 
-                  placeholder="请输入有效期天数" 
+                  placeholder="请输入有效期天数（永久有效请填 0）" 
                 />
               </Form.Item>
             </Col>
