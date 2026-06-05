@@ -38,10 +38,10 @@ exports.addMedicine = async (req, res) => {
     const expiration_date = new Date(production_date);
     expiration_date.setDate(expiration_date.getDate() + parseInt(validity_period_days));
 
-    // 插入新药品
+    // 插入新药品（由数据库自动生成 expiration_date，此处无需在 SQL 中显式写入）
     const [result] = await pool.execute(
-      'INSERT INTO medicines (medicine_name, storage_location, production_date, validity_period_days, quantity, expiration_date) VALUES (?, ?, ?, ?, ?, ?)',
-      [medicine_name, storage_location, production_date, validity_period_days, quantity, expiration_date]
+      'INSERT INTO medicines (medicine_name, storage_location, production_date, validity_period_days, quantity) VALUES (?, ?, ?, ?, ?)',
+      [medicine_name, storage_location, production_date, validity_period_days, quantity]
     );
 
     console.log('添加药品成功，ID:', result.insertId);
@@ -100,10 +100,10 @@ exports.updateMedicine = async (req, res) => {
     const expiration_date = new Date(production_date);
     expiration_date.setDate(expiration_date.getDate() + parseInt(validity_period_days));
 
-    // 更新药品
+    // 更新药品（由数据库自动计算 expiration_date，此处无需在 SQL 中显式更新）
     const [result] = await pool.execute(
-      'UPDATE medicines SET medicine_name = ?, storage_location = ?, production_date = ?, validity_period_days = ?, quantity = ?, expiration_date = ? WHERE id = ?',
-      [medicine_name, storage_location, production_date, validity_period_days, quantity, expiration_date, id]
+      'UPDATE medicines SET medicine_name = ?, storage_location = ?, production_date = ?, validity_period_days = ?, quantity = ? WHERE id = ?',
+      [medicine_name, storage_location, production_date, validity_period_days, quantity, id]
     );
 
     if (result.affectedRows === 0) {
@@ -318,10 +318,10 @@ exports.batchImportMedicines = async (req, res) => {
           const expiration_date = new Date(production_date);
           expiration_date.setDate(expiration_date.getDate() + parseInt(validity_period_days));
 
-          // 插入药品数据
+          // 插入药品数据（由数据库自动计算 expiration_date，此处无需在 SQL 中显式写入）
           const [result] = await connection.execute(
-            'INSERT INTO medicines (medicine_name, storage_location, production_date, validity_period_days, quantity, expiration_date) VALUES (?, ?, ?, ?, ?, ?)',
-            [medicine_name, storage_location, production_date, validity_period_days, quantity, expiration_date]
+            'INSERT INTO medicines (medicine_name, storage_location, production_date, validity_period_days, quantity) VALUES (?, ?, ?, ?, ?)',
+            [medicine_name, storage_location, production_date, validity_period_days, quantity]
           );
 
           // 添加操作记录
@@ -452,16 +452,13 @@ exports.batchUpdateMedicines = async (req, res) => {
             valuesToUpdate.push(updateData.quantity);
           }
 
-          // 如果更新了生产日期或有效期，需要重新计算过期日期
+          // 如果更新了生产日期或有效期，需要重新计算过期日期（由于数据库自动计算，只需在内存中保留用于操作记录）
           if (updateData.production_date || updateData.validity_period_days) {
             const productionDate = updateData.production_date || original.production_date;
             const validityDays = updateData.validity_period_days || original.validity_period_days;
             
             const expiration_date = new Date(productionDate);
             expiration_date.setDate(expiration_date.getDate() + parseInt(validityDays));
-            
-            fieldsToUpdate.push('expiration_date = ?');
-            valuesToUpdate.push(expiration_date);
           }
 
           if (fieldsToUpdate.length === 0) {

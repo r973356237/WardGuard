@@ -145,10 +145,10 @@ exports.addSupply = async (req, res) => {
     const expiration_date = new Date(production_date);
     expiration_date.setDate(expiration_date.getDate() + parseInt(validity_period_days));
 
-    // 插入新物资
+    // 插入新物资（由数据库自动计算 expiration_date，此处无需在 SQL 中显式写入）
     const [result] = await pool.execute(
-      'INSERT INTO supplies (supply_name, storage_location, production_date, validity_period_days, supply_number, expiration_date) VALUES (?, ?, ?, ?, ?, ?)',
-      [supply_name, storage_location, production_date, validity_period_days, supply_number, expiration_date]
+      'INSERT INTO supplies (supply_name, storage_location, production_date, validity_period_days, supply_number) VALUES (?, ?, ?, ?, ?)',
+      [supply_name, storage_location, production_date, validity_period_days, supply_number]
     );
 
     console.log('添加物资成功，ID:', result.insertId);
@@ -296,10 +296,10 @@ exports.updateSupply = async (req, res) => {
     const expiration_date = new Date(production_date);
     expiration_date.setDate(expiration_date.getDate() + parseInt(validity_period_days));
 
-    // 更新物资
+    // 更新物资（由数据库自动计算 expiration_date，此处无需在 SQL 中显式更新）
     const [result] = await pool.execute(
-      'UPDATE supplies SET supply_name = ?, storage_location = ?, production_date = ?, validity_period_days = ?, supply_number = ?, expiration_date = ? WHERE id = ?',
-      [supply_name, storage_location, production_date, validity_period_days, supply_number, expiration_date, id]
+      'UPDATE supplies SET supply_name = ?, storage_location = ?, production_date = ?, validity_period_days = ?, supply_number = ? WHERE id = ?',
+      [supply_name, storage_location, production_date, validity_period_days, supply_number, id]
     );
 
     if (result.affectedRows === 0) {
@@ -498,9 +498,10 @@ exports.batchImportSupplies = async (req, res) => {
             supply_name, storage_location, production_date, validity_period_days, supply_number, expiration_date
           });
           
+          // 插入物资数据（由数据库自动计算 expiration_date，此处无需在 SQL 中显式写入）
           const [result] = await connection.execute(
-            'INSERT INTO supplies (supply_name, storage_location, production_date, validity_period_days, supply_number, expiration_date) VALUES (?, ?, ?, ?, ?, ?)',
-            [supply_name, storage_location, production_date, validity_period_days, supply_number, expiration_date]
+            'INSERT INTO supplies (supply_name, storage_location, production_date, validity_period_days, supply_number) VALUES (?, ?, ?, ?, ?)',
+            [supply_name, storage_location, production_date, validity_period_days, supply_number]
           );
 
           console.log(`第${i + 1}行插入成功，ID:`, result.insertId);
@@ -643,15 +644,13 @@ exports.batchUpdateSupplies = async (req, res) => {
           const isProdDateUpdated = updateData.production_date !== undefined && updateData.production_date !== null;
           const isValidityUpdated = updateData.validity_period_days !== undefined && updateData.validity_period_days !== null;
 
+          // 如果更新了生产日期或有效期，需要重新计算过期日期（由于数据库自动计算，只需在内存中保留用于操作记录）
           if (isProdDateUpdated || isValidityUpdated) {
             const productionDate = isProdDateUpdated ? updateData.production_date : original.production_date;
             const validityDays = isValidityUpdated ? updateData.validity_period_days : original.validity_period_days;
             
             const expiration_date = new Date(productionDate);
             expiration_date.setDate(expiration_date.getDate() + parseInt(validityDays));
-            
-            fieldsToUpdate.push('expiration_date = ?');
-            valuesToUpdate.push(expiration_date);
           }
 
           if (fieldsToUpdate.length === 0) {

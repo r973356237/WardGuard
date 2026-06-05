@@ -83,19 +83,19 @@ class EmailService {
 
       const today = new Date().toISOString().split('T')[0];
       
-      // 查询过期物资，排除有效期为0的物资
+      // 查询过期物资，排除有效期为0的物资（直接利用数据库生成的 expiration_date 索引字段）
       const expiredSuppliesQuery = `
-        SELECT s.supply_name as name, DATE_ADD(s.production_date, INTERVAL s.validity_period_days DAY) as expiry_date, s.supply_number as quantity, s.storage_location, 'supplies' as type
+        SELECT s.supply_name as name, s.expiration_date as expiry_date, s.supply_number as quantity, s.storage_location, 'supplies' as type
         FROM supplies s
-        WHERE DATE_ADD(s.production_date, INTERVAL s.validity_period_days DAY) <= ? AND s.supply_number > 0 AND s.validity_period_days > 0
+        WHERE s.expiration_date <= ? AND s.supply_number > 0 AND s.validity_period_days > 0
         ORDER BY expiry_date ASC
       `;
       
-      // 查询过期药品
+      // 查询过期药品（直接利用数据库生成的 expiration_date 索引字段）
       const expiredMedicinesQuery = `
-        SELECT m.medicine_name as name, DATE_ADD(m.production_date, INTERVAL m.validity_period_days DAY) as expiry_date, m.quantity, m.storage_location, 'medicines' as type
+        SELECT m.medicine_name as name, m.expiration_date as expiry_date, m.quantity, m.storage_location, 'medicines' as type
         FROM medicines m
-        WHERE DATE_ADD(m.production_date, INTERVAL m.validity_period_days DAY) <= ? AND m.quantity > 0 AND m.validity_period_days > 0
+        WHERE m.expiration_date <= ? AND m.quantity > 0 AND m.validity_period_days > 0
         ORDER BY expiry_date ASC
       `;
 
@@ -108,8 +108,8 @@ class EmailService {
         FROM supplies s
         WHERE s.supply_number > 0 
           AND s.validity_period_days > 0
-          AND DATE_ADD(s.production_date, INTERVAL s.validity_period_days DAY) > ? 
-          AND DATE_ADD(s.production_date, INTERVAL s.validity_period_days DAY) <= DATE_ADD(?, INTERVAL 30 DAY)
+          AND s.expiration_date > ? 
+          AND s.expiration_date <= DATE_ADD(?, INTERVAL 30 DAY)
       `;
 
       // 查询即将到期药品数量 (从明天开始30天内)
@@ -118,8 +118,8 @@ class EmailService {
         FROM medicines m
         WHERE m.quantity > 0 
           AND m.validity_period_days > 0
-          AND DATE_ADD(m.production_date, INTERVAL m.validity_period_days DAY) > ? 
-          AND DATE_ADD(m.production_date, INTERVAL m.validity_period_days DAY) <= DATE_ADD(?, INTERVAL 30 DAY)
+          AND m.expiration_date > ? 
+          AND m.expiration_date <= DATE_ADD(?, INTERVAL 30 DAY)
       `;
 
       const [expiringSoonSuppliesResult] = await pool.query(expiringSoonSuppliesQuery, [today, today]);
