@@ -1,5 +1,6 @@
 const { getPool } = require('../db');
 const emailService = require('../services/emailService');
+const configManager = require('../config');
 
 // 缓存配置
 const CACHE_TTL = 30 * 1000; // 缓存30秒
@@ -111,6 +112,8 @@ const fetchDashboardData = async () => {
 
   console.log('开始并行获取各模块统计数据...');
 
+  const disableMedicine = configManager.disableMedicine();
+
   // 并行执行所有统计查询，提高性能
   const [
     [userCount],
@@ -129,7 +132,7 @@ const fetchDashboardData = async () => {
     pool.execute('SELECT COUNT(*) as count FROM employees'),
     
     // 药品统计（总数、过期数、即将到期数）
-    pool.execute(`
+    disableMedicine ? Promise.resolve([[{ total_count: 0, expired_count: 0, expiring_soon_count: 0 }]]) : pool.execute(`
       SELECT 
         COUNT(*) as total_count,
         SUM(CASE 
@@ -249,14 +252,18 @@ const fetchDashboardData = async () => {
   };
   
   // 构建响应数据
+  const modules = [
+    { name: '用户', value: userTotal },
+    { name: '员工', value: employeeTotal },
+    { name: '药品', value: medicineTotal },
+    { name: '体检记录', value: examinationTotal },
+    { name: '物资', value: supplyTotal }
+  ];
+
+  const filteredModules = disableMedicine ? modules.filter(m => m.name !== '药品') : modules;
+
   return {
-    modules: [
-      { name: '用户', value: userTotal },
-      { name: '员工', value: employeeTotal },
-      { name: '药品', value: medicineTotal },
-      { name: '体检记录', value: examinationTotal },
-      { name: '物资', value: supplyTotal }
-    ],
+    modules: filteredModules,
     alerts: {
       expiredMedicines: medicineExpired,
       expiringSoonMedicines: medicineExpiringSoon,
@@ -267,7 +274,8 @@ const fetchDashboardData = async () => {
       medicineExpireRate: Number(medicineExpireRate.toFixed(1)),
       supplyExpireRate: Number(supplyExpireRate.toFixed(1))
     },
-    emailService: emailServiceStatus
+    emailService: emailServiceStatus,
+    disableMedicine: disableMedicine
   };
 };
 
@@ -326,11 +334,11 @@ exports.getDashboardStats = async (req, res) => {
       dashboardCache.timestamp = now;
       
       console.log('仪表盘统计数据获取成功:', {
-        用户: dashboardData.modules[0].value,
-        员工: dashboardData.modules[1].value,
-        药品: `${dashboardData.modules[2].value}(${dashboardData.alerts.expiredMedicines}过期, ${dashboardData.alerts.expiringSoonMedicines}即将过期)`,
-        体检记录: dashboardData.modules[3].value,
-        物资: `${dashboardData.modules[4].value}(${dashboardData.alerts.expiredSupplies}过期, ${dashboardData.alerts.expiringSoonSupplies}即将过期)`,
+        用户: dashboardData.modules.find(m => m.name === '用户')?.value || 0,
+        员工: dashboardData.modules.find(m => m.name === '员工')?.value || 0,
+        药品: disableMedicine ? '已停用' : `${dashboardData.modules.find(m => m.name === '药品')?.value || 0}(${dashboardData.alerts.expiredMedicines}过期, ${dashboardData.alerts.expiringSoonMedicines}即将过期)`,
+        体检记录: dashboardData.modules.find(m => m.name === '体检记录')?.value || 0,
+        物资: `${dashboardData.modules.find(m => m.name === '物资')?.value || 0}(${dashboardData.alerts.expiredSupplies}过期, ${dashboardData.alerts.expiringSoonSupplies}即将过期)`,
         邮件服务: dashboardData.emailService.configured ? '已配置' : '未配置'
       });
 

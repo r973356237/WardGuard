@@ -1,5 +1,6 @@
 const nodemailer = require('nodemailer');
 const { getPool } = require('../db');
+const configManager = require('../config');
 
 class EmailService {
   constructor() {
@@ -99,8 +100,10 @@ class EmailService {
         ORDER BY expiry_date ASC
       `;
 
+      const disableMedicine = configManager.disableMedicine();
+
       const [expiredSupplies] = await pool.query(expiredSuppliesQuery, [today]);
-      const [expiredMedicines] = await pool.query(expiredMedicinesQuery, [today]);
+      const expiredMedicines = disableMedicine ? [] : (await pool.query(expiredMedicinesQuery, [today]))[0];
 
       // 查询即将到期物资数量 (从明天开始30天内)
       const expiringSoonSuppliesQuery = `
@@ -123,13 +126,13 @@ class EmailService {
       `;
 
       const [expiringSoonSuppliesResult] = await pool.query(expiringSoonSuppliesQuery, [today, today]);
-      const [expiringSoonMedicinesResult] = await pool.query(expiringSoonMedicinesQuery, [today, today]);
+      const expiringSoonMedicinesCount = disableMedicine ? 0 : (await pool.query(expiringSoonMedicinesQuery, [today, today]))[0][0]?.count || 0;
 
       return {
         supplies: expiredSupplies || [],
         medicines: expiredMedicines || [],
         expiringSoonSuppliesCount: expiringSoonSuppliesResult[0]?.count || 0,
-        expiringSoonMedicinesCount: expiringSoonMedicinesResult[0]?.count || 0,
+        expiringSoonMedicinesCount: expiringSoonMedicinesCount,
         total: (expiredSupplies?.length || 0) + (expiredMedicines?.length || 0)
       };
     } catch (error) {

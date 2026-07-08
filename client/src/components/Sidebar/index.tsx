@@ -17,6 +17,7 @@ interface UserInfo {
   username: string;
   name: string;
   role: string;
+  disableMedicine?: boolean;
 }
 
 const Sidebar: React.FC = () => {
@@ -159,6 +160,7 @@ const Sidebar: React.FC = () => {
       label: <Link to="/medicines">药品管理</Link>,
       permission: 'medicines:view',
       adminOnly: false,
+      feature: 'medicine',
     },
     {
       key: '/supplies',
@@ -186,6 +188,11 @@ const Sidebar: React.FC = () => {
   // 根据权限过滤菜单项
   const menuItems = allMenuItems
     .filter(item => {
+      // 检查特性停用
+      if (item.hasOwnProperty('feature') && (item as any).feature === 'medicine' && user?.disableMedicine) {
+        return false;
+      }
+
       // 如果是管理员专用项目，检查是否为管理员
       if (item.adminOnly && user?.role !== 'admin') {
         return false;

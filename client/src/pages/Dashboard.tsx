@@ -83,6 +83,7 @@ interface DashboardData {
   alerts: AlertData;
   rates: RateData;
   emailService?: EmailServiceStatus;
+  disableMedicine?: boolean;
 }
 
 const Dashboard: React.FC = () => {
@@ -219,55 +220,57 @@ const Dashboard: React.FC = () => {
           </Row>
 
           {/* 药品过期情况 */}
-          <Card title="药品过期情况" style={{ marginBottom: '16px' }}>
-            <Spin spinning={loading} tip="正在加载数据...">
-              <div style={{ padding: '16px' }}>
-                <Row gutter={[16, 0]}>
-                  <Col span={8}>
-                    <Statistic
-                      title="药品总数"
-                      value={dashboardData.modules.find(m => m.name === '药品')?.value || 0}
-                      suffix={<Badge status="error" text={`${dashboardData.alerts.expiredMedicines} 过期`} />}
-                    />
-                  </Col>
-                  <Col span={16}>
-                    <Progress
-                      percent={dashboardData.rates.medicineExpireRate}
-                      status={dashboardData.rates.medicineExpireRate > 10 ? 'exception' : 'active' as ProgressProps['status']}
-                      size="default"
-                      format={(percent) => `${percent?.toFixed(1)}% 药品已过期`}
-                    />
-                    <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', color: dashboardData.alerts.expiredMedicines > 0 ? '#ff4d4f' : '#52c41a' }}>
-                      {dashboardData.alerts.expiredMedicines > 0 ? (
-                        <> 
-                          <WarningOutlined style={{ marginRight: '8px' }} />
-                          <span>共有 {dashboardData.alerts.expiredMedicines} 种药品已过期，请及时处理</span>
-                        </>
-                      ) : (
-                        <> 
-                          <CheckCircleOutlined style={{ marginRight: '8px' }} />
-                          <span>暂无已过期的药品</span>
-                        </>
-                      )}
-                    </div>
-                    <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', color: dashboardData.alerts.expiringSoonMedicines > 0 ? '#faad14' : '#52c41a' }}>
-                      {dashboardData.alerts.expiringSoonMedicines > 0 ? (
-                        <> 
-                          <WarningOutlined style={{ marginRight: '8px' }} />
-                          <span>共有 {dashboardData.alerts.expiringSoonMedicines} 种药品将在30天内过期，请关注</span>
-                        </>
-                      ) : (
-                        <> 
-                          <CheckCircleOutlined style={{ marginRight: '8px' }} />
-                          <span>暂无30天内即将过期的药品</span>
-                        </>
-                      )}
-                    </div>
-                  </Col>
-                </Row>
-              </div>
-            </Spin>
-          </Card>
+          {!dashboardData.disableMedicine && (
+            <Card title="药品过期情况" style={{ marginBottom: '16px' }}>
+              <Spin spinning={loading} tip="正在加载数据...">
+                <div style={{ padding: '16px' }}>
+                  <Row gutter={[16, 0]}>
+                    <Col span={8}>
+                      <Statistic
+                        title="药品总数"
+                        value={dashboardData.modules.find(m => m.name === '药品')?.value || 0}
+                        suffix={<Badge status="error" text={`${dashboardData.alerts.expiredMedicines} 过期`} />}
+                      />
+                    </Col>
+                    <Col span={16}>
+                      <Progress
+                        percent={dashboardData.rates.medicineExpireRate}
+                        status={dashboardData.rates.medicineExpireRate > 10 ? 'exception' : 'active' as ProgressProps['status']}
+                        size="default"
+                        format={(percent) => `${percent?.toFixed(1)}% 药品已过期`}
+                      />
+                      <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', color: dashboardData.alerts.expiredMedicines > 0 ? '#ff4d4f' : '#52c41a' }}>
+                        {dashboardData.alerts.expiredMedicines > 0 ? (
+                          <> 
+                            <WarningOutlined style={{ marginRight: '8px' }} />
+                            <span>共有 {dashboardData.alerts.expiredMedicines} 种药品已过期，请及时处理</span>
+                          </>
+                        ) : (
+                          <> 
+                            <CheckCircleOutlined style={{ marginRight: '8px' }} />
+                            <span>暂无已过期的药品</span>
+                          </>
+                        )}
+                      </div>
+                      <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', color: dashboardData.alerts.expiringSoonMedicines > 0 ? '#faad14' : '#52c41a' }}>
+                        {dashboardData.alerts.expiringSoonMedicines > 0 ? (
+                          <> 
+                            <WarningOutlined style={{ marginRight: '8px' }} />
+                            <span>共有 {dashboardData.alerts.expiringSoonMedicines} 种药品将在30天内过期，请关注</span>
+                          </>
+                        ) : (
+                          <> 
+                            <CheckCircleOutlined style={{ marginRight: '8px' }} />
+                            <span>暂无30天内即将过期的药品</span>
+                          </>
+                        )}
+                      </div>
+                    </Col>
+                  </Row>
+                </div>
+              </Spin>
+            </Card>
+          )}
 
           {/* 物资过期情况 */}
           <Card title="物资过期情况" style={{ marginBottom: '16px' }}>

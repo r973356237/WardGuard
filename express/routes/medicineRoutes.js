@@ -3,6 +3,18 @@ const router = express.Router();
 const medicineController = require('../controllers/medicineController');
 const { authenticate } = require('../middleware/auth');
 const checkPermission = require('../middleware/check_permission');
+const config = require('../config');
+
+// 如果停用了药品模块，则拦截所有请求
+router.use((req, res, next) => {
+  if (config.disableMedicine()) {
+    return res.status(403).json({
+      success: false,
+      message: '药品模块已被系统管理员禁用'
+    });
+  }
+  next();
+});
 
 // 获取所有药品
 router.get('/', authenticate, checkPermission('medicines:view'), medicineController.getAllMedicines);

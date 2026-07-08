@@ -58,6 +58,16 @@ class ConfigManager {
     
     // CORS配置 - 开发环境默认使用前端实际端口
     process.env.CORS_ORIGIN = process.env.CORS_ORIGIN || (this.isProduction() ? 'https://yourdomain.com' : 'http://localhost:3001');
+
+    // 是否停用药品功能开关 (默认为 false)
+    process.env.DISABLE_MEDICINE = process.env.DISABLE_MEDICINE || 'false';
+  }
+
+  /**
+   * 获取是否停用药品模块的配置
+   */
+  disableMedicine() {
+    return process.env.DISABLE_MEDICINE === 'true';
   }
 
   /**
@@ -141,6 +151,7 @@ class ConfigManager {
     console.log(`数据库名称: ${process.env.DB_NAME}`);
     console.log(`日志级别: ${process.env.LOG_LEVEL}`);
     console.log(`CORS源: ${process.env.CORS_ORIGIN}`);
+    console.log(`停用药品模块: ${process.env.DISABLE_MEDICINE}`);
     console.log('==================');
   }
 }

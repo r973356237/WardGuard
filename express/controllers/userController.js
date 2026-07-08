@@ -103,7 +103,10 @@ exports.getMe = async (req, res) => {
     
     res.json({
       success: true,
-      data: users[0]
+      data: {
+        ...users[0],
+        disableMedicine: config.disableMedicine()
+      }
     });
   } catch (err) {
     console.error('获取用户信息错误:', err);

@@ -7,6 +7,7 @@ class SchedulerService {
   constructor() {
     this.tasks = new Map();
     this.isInitialized = false;
+    this.retryTimeout = null;
   }
 
   // 初始化调度器
@@ -27,10 +28,16 @@ class SchedulerService {
 
   // 设置邮件提醒任务
   async setupEmailReminderTask() {
+    if (this.retryTimeout) {
+      clearTimeout(this.retryTimeout);
+      this.retryTimeout = null;
+    }
+
     try {
       const pool = await getPool();
       if (!pool) {
-        console.log('数据库连接池未初始化，跳过邮件提醒任务');
+        console.log('数据库连接池未初始化，跳过邮件提醒任务，将在 10 秒后重试');
+        this.scheduleRetry();
         return;
       }
 
@@ -88,7 +95,7 @@ class SchedulerService {
             
             if (!shouldRun) {
               console.log('检测到配置已变更，当前时间不符合最新配置，跳过执行并更新本地调度任务');
-              // 触发自我更新，修复当前实例的过时配置
+              // 触发自我更新，修复当前实例 of 过时配置
               this.setupEmailReminderTask();
               return;
             }
@@ -115,8 +122,20 @@ class SchedulerService {
       console.log(`邮件提醒任务已设置: ${cronExpression} (${reminder_frequency} at ${reminder_time})`);
 
     } catch (error) {
-      console.error('设置邮件提醒任务失败:', error);
+      console.error('设置邮件提醒任务失败，将在 10 秒后重试:', error);
+      this.scheduleRetry();
     }
+  }
+
+  // 调度重试
+  scheduleRetry() {
+    if (this.retryTimeout) {
+      clearTimeout(this.retryTimeout);
+    }
+    this.retryTimeout = setTimeout(() => {
+      console.log('正在重试设置邮件提醒任务...');
+      this.setupEmailReminderTask();
+    }, 10000); // 10秒后重试
   }
 
   // 生成cron表达式
@@ -283,6 +302,10 @@ class SchedulerService {
 
   // 停止所有任务
   stopAllTasks() {
+    if (this.retryTimeout) {
+      clearTimeout(this.retryTimeout);
+      this.retryTimeout = null;
+    }
     for (const [taskName, task] of this.tasks) {
       task.stop();
       console.log(`任务 ${taskName} 已停止`);
